@@ -1,0 +1,3 @@
+[build-system]
+requires = ["maturin", "numpy"]
+build-backend = "maturin"

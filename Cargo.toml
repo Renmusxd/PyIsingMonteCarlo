@@ -1,0 +1,28 @@
+[package]
+name = "py_monte_carlo"
+version = "0.1.0"
+authors = ["sumnernh@gmail.com <sumnernh@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "py_monte_carlo"
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[dependencies]
+rand = "^0.7"
+rand_chacha = "^0.2"
+rayon = "^1.2"
+num = "^0.2"
+numpy = "^0.8"
+ndarray = "^0.13"
+monte_carlo = { path = "../monte_carlo_core", version = "^0.1" }
+
+[dependencies.pyo3]
+version = "^0.9"
+features = ["extension-module"]
