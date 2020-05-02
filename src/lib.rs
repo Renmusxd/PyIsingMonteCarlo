@@ -103,24 +103,85 @@ impl Lattice {
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
-            let (energies, states): (Vec<f64>, Vec<Vec<bool>>) = (0..num_experiments)
+
+            let mut energies = Array::default((num_experiments,));
+            let mut states = Array2::<bool>::default((num_experiments, self.nvars));
+
+            states
+                .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
-                .map(|_| {
+                .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &self.biases);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
                     (0..timesteps).for_each(|_| gs.do_time_step(beta, only_basic_moves).unwrap());
-                    let e = gs.get_energy();
-                    (e, gs.get_state())
-                })
-                .unzip();
-            let py_energies = Array::from(energies).into_pyarray(py).to_owned();
-            let flat_states = states.into_iter().flatten().collect();
-            let py_states = Array2::from_shape_vec((num_experiments, self.nvars), flat_states)
-                .unwrap()
-                .into_pyarray(py)
-                .to_owned();
+                    e.fill(gs.get_energy());
+                    s.iter_mut()
+                        .zip(gs.get_state().into_iter())
+                        .for_each(|(s, b)| *s = b);
+                });
+            let py_energies = energies.into_pyarray(py).to_owned();
+            let py_states = states.into_pyarray(py).to_owned();
+            Ok((py_energies, py_states))
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                "Cannot run classic monte carlo with transverse field".to_string(),
+            ))
+        }
+    }
+
+    /// Run a classical monte carlo simulation.
+    ///
+    /// # Arguments:
+    /// * `beta`: E/kt to use for the simulation.
+    /// * `timesteps`: number of timesteps to run.
+    /// * `num_experiments`: number of simultaneous experiments to run.
+    /// * `only_basic_moves`: disallow things other than simple spin flips.
+    fn run_monte_carlo_sampling(
+        &self,
+        py: Python,
+        beta: f64,
+        timesteps: usize,
+        num_experiments: usize,
+        only_basic_moves: Option<bool>,
+        thermalization_time: Option<usize>,
+    ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray3<bool>>)> {
+        if self.transverse.is_none() {
+            let only_basic_moves = only_basic_moves.unwrap_or(false);
+            let thermalization_time = thermalization_time.unwrap_or(0);
+
+            let mut energies = Array2::<f64>::default((num_experiments, timesteps));
+            let mut states = Array3::<bool>::default((num_experiments, timesteps, self.nvars));
+
+            states
+                .axis_iter_mut(ndarray::Axis(0))
+                .into_par_iter()
+                .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                .for_each(|(mut s, mut e)| {
+                    let mut gs = GraphState::new(&self.edges, &self.biases);
+                    if let Some(s) = &self.initial_state {
+                        gs.set_state(s.clone())
+                    };
+                    (0..thermalization_time)
+                        .try_for_each(|_| gs.do_time_step(beta, only_basic_moves))
+                        .unwrap();
+                    s.axis_iter_mut(ndarray::Axis(0)).zip(e.iter_mut()).fold(
+                        gs,
+                        |mut gs, (mut s, e)| {
+                            gs.do_time_step(beta, only_basic_moves).unwrap();
+                            s.iter_mut()
+                                .zip(gs.state_ref().iter().cloned())
+                                .for_each(|(s, b)| *s = b);
+                            *e = gs.get_energy();
+                            gs
+                        },
+                    );
+                });
+
+            let py_energies = energies.into_pyarray(py).to_owned();
+            let py_states = states.into_pyarray(py).to_owned();
 
             Ok((py_energies, py_states))
         } else {
@@ -163,9 +224,14 @@ impl Lattice {
                 betas.push((timesteps, v));
             }
 
-            let (energies, states): (Vec<f64>, Vec<Vec<bool>>) = (0..num_experiments)
+            let mut energies = Array::default((num_experiments,));
+            let mut states = Array2::<bool>::default((num_experiments, self.nvars));
+
+            states
+                .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
-                .map(|_| {
+                .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &self.biases);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
@@ -182,16 +248,15 @@ impl Lattice {
                             gs.do_time_step(beta, only_basic_moves)
                         })
                         .unwrap();
-                    let e = gs.get_energy();
-                    (e, gs.get_state())
-                }).unzip();
 
-            let py_energies = Array::from(energies).into_pyarray(py).to_owned();
-            let flat_states = states.into_iter().flatten().collect();
-            let py_states = Array2::from_shape_vec((num_experiments, self.nvars), flat_states)
-                .unwrap()
-                .into_pyarray(py)
-                .to_owned();
+                    e.fill(gs.get_energy());
+                    s.iter_mut()
+                        .zip(gs.get_state().into_iter())
+                        .for_each(|(s, b)| *s = b);
+                });
+
+            let py_energies = energies.into_pyarray(py).to_owned();
+            let py_states = states.into_pyarray(py).to_owned();
 
             Ok((py_energies, py_states))
         } else {
@@ -234,40 +299,37 @@ impl Lattice {
                 betas.push((timesteps, v));
             }
 
-            let (energies, states): (Vec<Vec<f64>>, Vec<Vec<bool>>) = (0..num_experiments)
+            let mut energies = Array2::<f64>::default((num_experiments, timesteps));
+            let mut states = Array2::<bool>::default((num_experiments, self.nvars));
+
+            states
+                .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
-                .map(|_| {
+                .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &self.biases);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
                     let mut beta_index = 0;
 
-                    let v = (0..timesteps)
-                        .map(|_| {
-                            while i > betas[beta_index + 1].0 {
-                                beta_index += 1;
-                            }
-                            let (ia, va) = betas[beta_index];
-                            let (ib, vb) = betas[beta_index + 1];
-                            let beta = (vb - va) * ((i - ia) as f64 / (ib - ia) as f64) + va;
-                            gs.do_time_step(beta, only_basic_moves).unwrap();
-                            gs.get_energy()
-                        })
-                        .collect();
-                    (v, gs.get_state())
-                }).unzip();
+                    e.axis_iter_mut(ndarray::Axis(0)).for_each(|mut e| {
+                        while i > betas[beta_index + 1].0 {
+                            beta_index += 1;
+                        }
+                        let (ia, va) = betas[beta_index];
+                        let (ib, vb) = betas[beta_index + 1];
+                        let beta = (vb - va) * ((i - ia) as f64 / (ib - ia) as f64) + va;
+                        gs.do_time_step(beta, only_basic_moves).unwrap();
+                        e.fill(gs.get_energy())
+                    });
+                    s.iter_mut()
+                        .zip(gs.get_state().into_iter())
+                        .for_each(|(s, b)| *s = b);
+                });
 
-            let flat_energies = energies.into_iter().flatten().collect();
-            let py_energies = Array2::from_shape_vec((num_experiments, timesteps), flat_energies)
-                .unwrap()
-                .into_pyarray(py)
-                .to_owned();
-            let flat_states = states.into_iter().flatten().collect();
-            let py_states = Array2::from_shape_vec((num_experiments, self.nvars), flat_states)
-                .unwrap()
-                .into_pyarray(py)
-                .to_owned();
+            let py_energies = energies.into_pyarray(py).to_owned();
+            let py_states = states.into_pyarray(py).to_owned();
 
             Ok((py_energies, py_states))
         } else {
@@ -306,9 +368,15 @@ impl Lattice {
                     let use_heatbath_diagonal_update =
                         use_heatbath_diagonal_update.unwrap_or(false);
                     let cutoff = self.nvars;
-                    let (states, energies): (Vec<Vec<bool>>, Vec<f64>) = (0..num_experiments)
+
+                    let mut energies = Array::default((num_experiments,));
+                    let mut states = Array2::<bool>::default((num_experiments, self.nvars));
+
+                    states
+                        .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .map(|_| {
+                        .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                        .for_each(|(mut s, mut e)| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -319,15 +387,15 @@ impl Lattice {
                             );
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
-                            (qmc_graph.into_vec(), average_energy)
-                        }).unzip();
 
-                    let py_energies = Array::from(energies).into_pyarray(py).to_owned();
-                    let flat_states = states.into_iter().flatten().collect();
-                    let py_states = Array2::from_shape_vec((num_experiments, self.nvars), flat_states)
-                        .unwrap()
-                        .into_pyarray(py)
-                        .to_owned();
+                            s.iter_mut()
+                                .zip(qmc_graph.into_vec().into_iter())
+                                .for_each(|(s, b)| *s = b);
+                            e.fill(average_energy)
+                        });
+
+                    let py_energies = energies.into_pyarray(py).to_owned();
+                    let py_states = states.into_pyarray(py).to_owned();
 
                     Ok((py_energies, py_states))
                 }
@@ -340,7 +408,7 @@ impl Lattice {
     ///
     /// # Arguments:
     /// * `beta`: E/kt to use for the simulation.
-    /// * `timesteps`: number of timesteps to run.
+    /// * `timesteps`: number of timesteps to sample.
     /// * `num_experiments`: number of simultaneous experiments to run.
     /// * `sampling_wait_buffer`: timesteps to wait before sampling begins.
     /// * `sampling_freq`: frequency of sampling in number of timesteps.
@@ -371,9 +439,19 @@ impl Lattice {
                     let sampling_wait_buffer =
                         sampling_wait_buffer.map(|wait| min(wait, timesteps));
                     let cutoff = self.nvars;
-                    let (states, energies): (Vec<Vec<Vec<bool>>>, Vec<f64>) = (0..num_experiments)
+
+                    let mut energies = Array::default((num_experiments,));
+                    let mut states = Array3::<bool>::default((
+                        num_experiments,
+                        timesteps / sampling_freq.unwrap_or(1),
+                        self.nvars,
+                    ));
+
+                    states
+                        .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .map(|_| {
+                        .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                        .for_each(|(mut s, mut e)| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -382,28 +460,19 @@ impl Lattice {
                                 use_heatbath_diagonal_update,
                                 self.initial_state.clone(),
                             );
-                            let wait = if let Some(wait) = sampling_wait_buffer {
+                            if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
-                                wait
-                            } else {
-                                0
                             };
 
-                            qmc_graph.timesteps_sample(timesteps - wait, beta, sampling_freq)
-                        }).unzip();
-
-                    let wait = if let Some(wait) = sampling_wait_buffer {
-                        wait
-                    } else {
-                        0
-                    };
-
-                    let py_energies = Array::from(energies).into_pyarray(py).to_owned();
-                    let flat_states = states.into_iter().map(|v| v.into_iter().flatten().collect::<Vec<_>>()).flatten().collect();
-                    let py_states = Array3::from_shape_vec((num_experiments, timesteps - wait, self.nvars), flat_states)
-                        .unwrap()
-                        .into_pyarray(py)
-                        .to_owned();
+                            let (states, energy) =
+                                qmc_graph.timesteps_sample(timesteps, beta, sampling_freq);
+                            e.fill(energy);
+                            s.iter_mut()
+                                .zip(states.into_iter().flatten())
+                                .for_each(|(s, b)| *s = b);
+                        });
+                    let py_energies = energies.into_pyarray(py).to_owned();
+                    let py_states = states.into_pyarray(py).to_owned();
 
                     Ok((py_energies, py_states))
                 }
@@ -447,9 +516,12 @@ impl Lattice {
                         use_heatbath_diagonal_update.unwrap_or(false);
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
-                    let corrs = (0..num_experiments)
+
+                    let mut corrs = Array::default((num_experiments, timesteps));
+                    corrs
+                        .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .map(|_| {
+                        .for_each(|mut corrs| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -463,21 +535,18 @@ impl Lattice {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
                             }
 
-                            qmc_graph.calculate_variable_autocorrelation(
+                            let auto = qmc_graph.calculate_variable_autocorrelation(
                                 timesteps,
                                 beta,
                                 sampling_freq,
                                 use_fft,
-                            )
-                        })
-                        .collect::<Vec<_>>();
-
-                    let flat_corrs = corrs.into_iter().flatten().collect();
-                    let py_corrs = Array2::from_shape_vec((num_experiments, timesteps), flat_corrs)
-                        .unwrap()
-                        .into_pyarray(py)
-                        .to_owned();
-
+                            );
+                            corrs
+                                .iter_mut()
+                                .zip(auto.into_iter())
+                                .for_each(|(c, v)| *c = v);
+                        });
+                    let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
                 }
             }
@@ -520,9 +589,11 @@ impl Lattice {
                         use_heatbath_diagonal_update.unwrap_or(false);
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
-                    let corrs = (0..num_experiments)
+                    let mut corrs = Array::default((num_experiments, timesteps));
+                    corrs
+                        .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .map(|_| {
+                        .for_each(|mut corrs| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -536,21 +607,19 @@ impl Lattice {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
                             }
 
-                            qmc_graph.calculate_bond_autocorrelation(
+                            let auto = qmc_graph.calculate_bond_autocorrelation(
                                 timesteps,
                                 beta,
                                 sampling_freq,
                                 use_fft,
-                            )
-                        })
-                        .collect::<Vec<_>>();
+                            );
+                            corrs
+                                .iter_mut()
+                                .zip(auto.into_iter())
+                                .for_each(|(c, v)| *c = v);
+                        });
 
-                    let flat_corrs = corrs.into_iter().flatten().collect();
-                    let py_corrs = Array2::from_shape_vec((num_experiments, timesteps), flat_corrs)
-                        .unwrap()
-                        .into_pyarray(py)
-                        .to_owned();
-
+                    let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
                 }
             }
@@ -595,9 +664,14 @@ impl Lattice {
                     let cutoff = self.nvars;
                     let (down_m, up_m) = spin_measurement.unwrap_or((-1.0, 1.0));
                     let exponent = exponent.unwrap_or(1);
-                    let (measures, energies): (Vec<f64>, Vec<f64>) = (0..num_experiments)
+                    let mut energies = Array::default((num_experiments,));
+                    let mut measures = Array::default((num_experiments,));
+
+                    measures
+                        .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .map(|_| {
+                        .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                        .for_each(|(mut m, mut e)| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -607,14 +681,11 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
 
-                            let wait = if let Some(wait) = sampling_wait_buffer {
+                            if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
-                                wait
-                            } else {
-                                0
                             };
                             let ((measure, steps), average_energy) = qmc_graph.timesteps_measure(
-                                timesteps - wait,
+                                timesteps,
                                 beta,
                                 (0.0, 0),
                                 |(acc, step), state, _| {
@@ -630,12 +701,12 @@ impl Lattice {
                                 },
                                 sampling_freq,
                             );
-                            (measure / steps as f64, average_energy)
-                        }).unzip();
+                            m.fill(measure / steps as f64);
+                            e.fill(average_energy);
+                        });
 
-                    let py_measures = Array::from(measures).into_pyarray(py).to_owned();
-                    let py_energies = Array::from(energies).into_pyarray(py).to_owned();
-
+                    let py_measures = measures.into_pyarray(py).to_owned();
+                    let py_energies = energies.into_pyarray(py).to_owned();
                     Ok((py_measures, py_energies))
                 }
             }
@@ -646,50 +717,5 @@ impl Lattice {
 #[pymodule]
 fn py_monte_carlo(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Lattice>()?;
-    //
-    // #[pyfn(m, "run_quantum_monte_carlo_sampling")]
-    // fn run_quantum_monte_carlo_sampling_numpy(
-    //     py: Python,
-    //     lattice: PyRef<Lattice>,
-    //     beta: f64,
-    //     timesteps: usize,
-    //     num_experiments: usize,
-    //     sampling_wait_buffer: Option<usize>,
-    //     sampling_freq: Option<usize>,
-    //     use_loop_update: Option<bool>,
-    //     use_heatbath_diagonal_update: Option<bool>,
-    // ) -> PyResult<(Py<PyArray3<bool>>, Py<PyArray1<f64>>)> {
-    //     let res = lattice.run_quantum_monte_carlo_sampling(
-    //         beta,
-    //         timesteps,
-    //         num_experiments,
-    //         sampling_wait_buffer,
-    //         sampling_freq,
-    //         use_loop_update,
-    //         use_heatbath_diagonal_update,
-    //     )?;
-    //
-    //     let timesteps = timesteps as usize;
-    //     let nvars = lattice.nvars;
-    //     let total = num_experiments * timesteps * nvars;
-    //     let mut bool_arr =
-    //         Array::from_shape_vec((num_experiments, timesteps, nvars), vec![false; total]).unwrap();
-    //     let mut f_arr = Array::zeros((num_experiments,));
-    //     res.into_iter()
-    //         .enumerate()
-    //         .for_each(|(exp, (timesteps, f))| {
-    //             timesteps.into_iter().enumerate().for_each(|(t, vars)| {
-    //                 vars.into_iter().enumerate().for_each(|(i, v)| {
-    //                     bool_arr[[exp, t, i]] = v;
-    //                 });
-    //             });
-    //             f_arr[exp] = f;
-    //         });
-    //
-    //     let bool_arr = bool_arr.into_pyarray(py).to_owned();
-    //     let f_arr = f_arr.into_pyarray(py).to_owned();
-    //     Ok((bool_arr, f_arr))
-    // }
-
     Ok(())
 }
