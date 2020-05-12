@@ -1,4 +1,5 @@
 extern crate monte_carlo;
+use itertools::Itertools;
 use monte_carlo::graph::*;
 use monte_carlo::sse::qmc_graph::new_qmc;
 use ndarray::{Array, Array2, Array3};
@@ -464,12 +465,19 @@ impl Lattice {
                                 qmc_graph.timesteps(wait, beta);
                             };
 
-                            let (states, energy) =
-                                qmc_graph.timesteps_sample(timesteps, beta, sampling_freq);
+                            let energy = qmc_graph.timesteps_sample_iter_zip(
+                                timesteps,
+                                beta,
+                                sampling_freq,
+                                s.iter_mut().chunks(self.nvars).into_iter(),
+                                |buf, s, _| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
+                            );
                             e.fill(energy);
-                            s.iter_mut()
-                                .zip(states.into_iter().flatten())
-                                .for_each(|(s, b)| *s = b);
+                            // let (states, energy) =
+                            //     qmc_graph.timesteps_sample(timesteps, beta, sampling_freq);
+                            // s.iter_mut()
+                            //     .zip(states.into_iter().flatten())
+                            //     .for_each(|(s, b)| *s = b);
                         });
                     let py_energies = energies.into_pyarray(py).to_owned();
                     let py_states = states.into_pyarray(py).to_owned();
