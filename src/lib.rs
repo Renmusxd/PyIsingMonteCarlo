@@ -470,7 +470,7 @@ impl Lattice {
                                 beta,
                                 sampling_freq,
                                 s.iter_mut().chunks(self.nvars).into_iter(),
-                                |buf, s, _| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
+                                |buf, s| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
                             );
                             e.fill(energy);
                             // let (states, energy) =
@@ -696,7 +696,7 @@ impl Lattice {
                                 timesteps,
                                 beta,
                                 (0.0, 0),
-                                |(acc, step), state, _| {
+                                |(acc, step), state| {
                                     let acc = state
                                         .iter()
                                         .fold(
