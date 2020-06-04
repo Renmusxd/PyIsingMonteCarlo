@@ -169,6 +169,7 @@ dependencies = [
 [[package]]
 name = "ising_monte_carlo"
 version = "1.1.0"
+source = "git+https://github.com/Renmusxd/IsingMonteCarlo#a105f0e52730797eb094c76b416bc9a1c2784e58"
 dependencies = [
  "num",
  "rand",
