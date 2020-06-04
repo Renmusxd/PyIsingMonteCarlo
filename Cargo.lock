@@ -228,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "monte_carlo"
-version = "1.0.2"
+version = "1.1.0"
 dependencies = [
  "num",
  "rand",
@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "py_monte_carlo"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "itertools",
  "monte_carlo",

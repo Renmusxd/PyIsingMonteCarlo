@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["sumnernh@gmail.com <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -21,7 +21,11 @@ rand_chacha = "^0.2"
 rayon = "^1.2"
 num = "^0.2"
 numpy = "^0.8"
-monte_carlo = { path = "../monte_carlo_core", version = "^1.0" }
+
+[dependencies.monte_carlo]
+version = "^1.0"
+path = "../monte_carlo_core"
+features = ["autocorrelations"]
 
 [dependencies.pyo3]
 version = "^0.9"
