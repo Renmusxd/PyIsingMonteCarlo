@@ -22,7 +22,7 @@ rayon = "^1.2"
 num = "^0.2"
 numpy = "^0.8"
 
-[dependencies.monte_carlo]
+[dependencies.ising_monte_carlo]
 version = "^1.0"
 path = "../monte_carlo_core"
 features = ["autocorrelations"]

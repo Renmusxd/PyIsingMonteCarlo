@@ -1,7 +1,7 @@
-extern crate monte_carlo;
+extern crate ising_monte_carlo;
+use ising_monte_carlo::graph::*;
+use ising_monte_carlo::sse::qmc_graph::new_qmc;
 use itertools::Itertools;
-use monte_carlo::graph::*;
-use monte_carlo::sse::qmc_graph::new_qmc;
 use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;

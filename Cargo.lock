@@ -167,6 +167,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ising_monte_carlo"
+version = "1.1.0"
+dependencies = [
+ "num",
+ "rand",
+ "rayon",
+ "rustfft",
+ "smallvec",
+]
+
+[[package]]
 name = "itertools"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,17 +235,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4fc2c02a7e374099d4ee95a193111f72d2110197fe200272371758f6c3643d8"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "monte_carlo"
-version = "1.1.0"
-dependencies = [
- "num",
- "rand",
- "rayon",
- "rustfft",
- "smallvec",
 ]
 
 [[package]]
@@ -423,8 +423,8 @@ dependencies = [
 name = "py_monte_carlo"
 version = "1.0.1"
 dependencies = [
+ "ising_monte_carlo",
  "itertools",
- "monte_carlo",
  "ndarray",
  "num",
  "numpy",
