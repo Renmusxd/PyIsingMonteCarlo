@@ -1,5 +1,4 @@
 extern crate ising_monte_carlo;
-use self::ising_monte_carlo::sse::fast_ops::{FastOpNode, FastOps};
 use ising_monte_carlo::graph::*;
 use ising_monte_carlo::parallel_tempering::*;
 use ndarray::Array3;
@@ -10,7 +9,7 @@ use std::cmp::{min, max};
 
 #[pyclass]
 pub struct LatticeTempering {
-    tempering: TemperingContainer<ThreadRng, SmallRng, FastOpNode, FastOps, FastOps>,
+    tempering: DefaultTemperingContainer<ThreadRng, SmallRng>,
 }
 
 #[pymethods]
@@ -29,7 +28,7 @@ impl LatticeTempering {
 
         let rng = rand::thread_rng();
         let tempering =
-            TemperingContainer::<ThreadRng, SmallRng, FastOpNode, FastOps, FastOps>::new(
+            DefaultTemperingContainer::<ThreadRng, SmallRng>::new(
                 rng,
                 edges,
                 cutoff,

@@ -74,7 +74,7 @@ impl Lattice {
 
     /// Set the initial state for monte carlo, if it's empty then choose a random state each time.
     fn set_initial_state(&mut self, initial_state: Vec<bool>) -> PyResult<()> {
-        if initial_state.len() == self.biases.len() {
+        if initial_state.len() == self.nvars {
             self.initial_state = Some(initial_state);
             Ok(())
         } else if initial_state.is_empty() {
