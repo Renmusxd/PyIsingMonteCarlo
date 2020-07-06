@@ -24,8 +24,7 @@ numpy = "^0.8"
 
 [dependencies.ising_monte_carlo]
 version = "^1.2"
-#git = "https://github.com/Renmusxd/IsingMonteCarlo"
-path = "../IsingMonteCarlo"
+git = "https://github.com/Renmusxd/IsingMonteCarlo"
 features = ["autocorrelations", "parallel-tempering"]
 
 [dependencies.pyo3]
