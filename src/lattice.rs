@@ -8,6 +8,9 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 use std::cmp::{max, min};
 
+/// A lattice for running monte carlo simulations. Takes a list of edges: ((a, b), j), ...
+/// Creates new initial conditions each time simulations are run, does not preserve any internal
+/// state for the lattice variables (spins).
 #[pyclass]
 pub struct Lattice {
     nvars: usize,
@@ -17,7 +20,6 @@ pub struct Lattice {
     initial_state: Option<Vec<bool>>,
 }
 
-/// A lattice for running monte carlo simulations. Takes a list of edges: ((a, b), j), ...
 #[pymethods]
 impl Lattice {
     /// Make a new lattice with `edges`, positive implies antiferromagnetic bonds, negative is

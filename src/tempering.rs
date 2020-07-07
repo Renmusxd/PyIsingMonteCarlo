@@ -1,12 +1,14 @@
 extern crate ising_monte_carlo;
 use ising_monte_carlo::graph::*;
 use ising_monte_carlo::parallel_tempering::*;
-use ndarray::Array3;
-use numpy::{IntoPyArray, PyArray3};
+use ndarray::{Array, Array3};
+use numpy::{IntoPyArray, PyArray1, PyArray3};
 use pyo3::prelude::*;
 use rand::prelude::*;
-use std::cmp::{min, max};
+use rayon::prelude::*;
+use std::cmp::{max, min};
 
+/// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
 pub struct LatticeTempering {
     tempering: DefaultTemperingContainer<ThreadRng, SmallRng>,
@@ -15,9 +17,7 @@ pub struct LatticeTempering {
 #[pymethods]
 impl LatticeTempering {
     #[new]
-    fn new(
-        edges: Vec<(Edge, f64)>,
-    ) -> Self {
+    fn new(edges: Vec<(Edge, f64)>) -> Self {
         let nvars = edges
             .iter()
             .map(|((a, b), _)| max(*a, *b))
@@ -28,13 +28,7 @@ impl LatticeTempering {
 
         let rng = rand::thread_rng();
         let tempering =
-            DefaultTemperingContainer::<ThreadRng, SmallRng>::new(
-                rng,
-                edges,
-                cutoff,
-                false,
-                false,
-            );
+            DefaultTemperingContainer::<ThreadRng, SmallRng>::new(rng, edges, cutoff, false, false);
         Self { tempering }
     }
 
@@ -51,23 +45,29 @@ impl LatticeTempering {
         &mut self,
         py: Python,
         mut timesteps: usize,
-        replica_swap_freq: usize,
+        replica_swap_freq: Option<usize>,
         sampling_freq: Option<usize>,
-    ) -> PyResult<Py<PyArray3<bool>>> {
+    ) -> PyResult<(Py<PyArray3<bool>>, Py<PyArray1<f64>>)> {
         let sampling_freq = sampling_freq.unwrap_or(1);
+        let replica_swap_freq = replica_swap_freq.unwrap_or(1);
         let mut states = Array3::<bool>::default((
             self.tempering.num_graphs(),
             timesteps / sampling_freq,
             self.tempering.nvars(),
         ));
+        let mut energy_acc = vec![0.0; self.tempering.num_graphs()];
 
         let mut time_to_swap = replica_swap_freq;
         let mut time_to_sample = sampling_freq;
         let mut timestep_index = 0;
 
         while timesteps > 0 {
-            let t = min(time_to_sample, time_to_swap);
-            self.tempering.parallel_timesteps(t);
+            let t = min(min(time_to_sample, time_to_swap), timesteps);
+            self.tempering.graph_mut().par_iter_mut()
+                .zip(energy_acc.par_iter_mut())
+                .for_each(|((graph, beta), e)| {
+                    *e += graph.timesteps(t, *beta);
+                });
             time_to_sample -= t;
             time_to_swap -= t;
             timesteps -= t;
@@ -77,23 +77,28 @@ impl LatticeTempering {
                 time_to_swap = replica_swap_freq;
             }
             if time_to_sample == 0 {
+                let graphs = self.tempering.graph_ref().par_iter();
                 states
                     .axis_iter_mut(ndarray::Axis(0))
-                    .into_iter()
-                    .zip(self.tempering.graph_ref().into_iter())
+                    .into_par_iter()
+                    .zip(graphs)
                     .for_each(|(mut s, (g, _))| {
-                        let mut s = s.index_axis_mut(ndarray::Axis(0), timestep_index);
-                        let state = g.state_ref();
-                        s.iter_mut().zip(state.iter()).for_each(|(a, b)| {
-                            *a = *b;
-                        })
-
+                        s.index_axis_mut(ndarray::Axis(0), timestep_index)
+                            .iter_mut()
+                            .zip(g.state_ref().iter())
+                            .for_each(|(a, b)| {
+                                *a = *b;
+                            })
                     });
                 timestep_index += 1;
                 time_to_sample = sampling_freq;
             }
         }
         let py_states = states.into_pyarray(py).to_owned();
-        Ok(py_states)
+
+        let energies = energy_acc.into_iter().map(|e| e / timestep_index as f64).collect::<Vec<_>>();
+        let energies = Array::from(energies);
+        let py_energies = energies.into_pyarray(py).to_owned();
+        Ok((py_states, py_energies))
     }
 }
