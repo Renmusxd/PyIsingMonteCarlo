@@ -1,5 +1,3 @@
-#![feature(move_ref_pattern)]
-
 mod lattice;
 mod tempering;
 
