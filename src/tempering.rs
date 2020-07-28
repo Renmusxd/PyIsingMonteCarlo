@@ -29,7 +29,7 @@ impl LatticeTempering {
 
         let rng = rand::thread_rng();
         let tempering =
-            DefaultTemperingContainer::<ThreadRng, SmallRng>::new(rng, edges, cutoff, false, false);
+            DefaultTemperingContainer::<ThreadRng, SmallRng>::new(rng, edges, cutoff);
         Self { tempering }
     }
 

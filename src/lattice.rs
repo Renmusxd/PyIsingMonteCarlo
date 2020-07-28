@@ -354,8 +354,6 @@ impl Lattice {
         beta: f64,
         timesteps: usize,
         num_experiments: usize,
-        use_loop_update: Option<bool>,
-        use_heatbath_diagonal_update: Option<bool>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         if self.biases.iter().any(|b| *b != 0.0) {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
@@ -367,9 +365,6 @@ impl Lattice {
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
                 Some(transverse) => {
-                    let use_loop_update = use_loop_update.unwrap_or(false);
-                    let use_heatbath_diagonal_update =
-                        use_heatbath_diagonal_update.unwrap_or(false);
                     let cutoff = self.nvars;
 
                     let mut energies = Array::default((num_experiments,));
@@ -384,8 +379,6 @@ impl Lattice {
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
-                                use_loop_update,
-                                use_heatbath_diagonal_update,
                                 self.initial_state.clone(),
                             );
 
@@ -423,8 +416,6 @@ impl Lattice {
         num_experiments: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_loop_update: Option<bool>,
-        use_heatbath_diagonal_update: Option<bool>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray3<bool>>)> {
         if self.biases.iter().any(|b| *b != 0.0) {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
@@ -436,9 +427,6 @@ impl Lattice {
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
                 Some(transverse) => {
-                    let use_loop_update = use_loop_update.unwrap_or(false);
-                    let use_heatbath_diagonal_update =
-                        use_heatbath_diagonal_update.unwrap_or(false);
                     let sampling_wait_buffer =
                         sampling_wait_buffer.map(|wait| min(wait, timesteps));
                     let cutoff = self.nvars;
@@ -459,8 +447,6 @@ impl Lattice {
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
-                                use_loop_update,
-                                use_heatbath_diagonal_update,
                                 self.initial_state.clone(),
                             );
                             if let Some(wait) = sampling_wait_buffer {
@@ -507,8 +493,6 @@ impl Lattice {
         num_experiments: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_loop_update: Option<bool>,
-        use_heatbath_diagonal_update: Option<bool>,
         use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         if self.biases.iter().any(|b| *b != 0.0) {
@@ -521,9 +505,6 @@ impl Lattice {
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
                 Some(transverse) => {
-                    let use_loop_update = use_loop_update.unwrap_or(false);
-                    let use_heatbath_diagonal_update =
-                        use_heatbath_diagonal_update.unwrap_or(false);
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
 
@@ -536,8 +517,6 @@ impl Lattice {
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
-                                use_loop_update,
-                                use_heatbath_diagonal_update,
                                 self.initial_state.clone(),
                             );
 
@@ -580,8 +559,6 @@ impl Lattice {
         num_experiments: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_loop_update: Option<bool>,
-        use_heatbath_diagonal_update: Option<bool>,
         use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         if self.biases.iter().any(|b| *b != 0.0) {
@@ -594,9 +571,6 @@ impl Lattice {
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
                 Some(transverse) => {
-                    let use_loop_update = use_loop_update.unwrap_or(false);
-                    let use_heatbath_diagonal_update =
-                        use_heatbath_diagonal_update.unwrap_or(false);
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
                     let mut corrs = Array::default((num_experiments, timesteps));
@@ -608,8 +582,6 @@ impl Lattice {
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
-                                use_loop_update,
-                                use_heatbath_diagonal_update,
                                 self.initial_state.clone(),
                             );
 
@@ -654,8 +626,6 @@ impl Lattice {
         sampling_freq: Option<usize>,
         sampling_wait_buffer: Option<usize>,
         spin_measurement: Option<(f64, f64)>,
-        use_loop_update: Option<bool>,
-        use_heatbath_diagonal_update: Option<bool>,
         exponent: Option<i32>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray1<f64>>)> {
         if self.biases.iter().any(|b| *b != 0.0) {
@@ -668,9 +638,6 @@ impl Lattice {
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
                 Some(transverse) => {
-                    let use_loop_update = use_loop_update.unwrap_or(false);
-                    let use_heatbath_diagonal_update =
-                        use_heatbath_diagonal_update.unwrap_or(false);
                     let cutoff = self.nvars;
                     let (down_m, up_m) = spin_measurement.unwrap_or((-1.0, 1.0));
                     let exponent = exponent.unwrap_or(1);
@@ -686,8 +653,6 @@ impl Lattice {
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
-                                use_loop_update,
-                                use_heatbath_diagonal_update,
                                 self.initial_state.clone(),
                             );
 
