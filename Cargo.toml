@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "1.3.1"
+version = "1.3.2"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -17,7 +17,6 @@ panic = "abort"
 itertools = "^0.9"
 rand = "^0.7"
 rayon = "^1.2"
-num = "^0.2"
 numpy = "^0.8"
 
 [dependencies.ising_monte_carlo]
