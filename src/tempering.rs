@@ -1,5 +1,6 @@
 extern crate ising_monte_carlo;
 use self::ising_monte_carlo::parallel_tempering::autocorrelations::ParallelTemperingAutocorrelations;
+use self::ising_monte_carlo::parallel_tempering::serialization::*;
 use ising_monte_carlo::graph::*;
 use ising_monte_carlo::parallel_tempering::*;
 use ndarray::{Array, Array3};
@@ -8,11 +9,12 @@ use pyo3::prelude::*;
 use rand::prelude::*;
 use rayon::prelude::*;
 use std::cmp::{max, min};
+use std::fs::File;
 
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
 pub struct LatticeTempering {
-    tempering: DefaultTemperingContainer<ThreadRng, SmallRng>,
+    tempering: DefaultTemperingContainer<SmallRng, SmallRng>,
 }
 
 #[pymethods]
@@ -27,21 +29,24 @@ impl LatticeTempering {
             .unwrap();
         let cutoff = nvars;
 
-        let rng = rand::thread_rng();
-        let tempering =
-            DefaultTemperingContainer::<ThreadRng, SmallRng>::new(rng, edges, cutoff);
+        let rng = SmallRng::from_entropy();
+        let tempering = DefaultTemperingContainer::<SmallRng, SmallRng>::new(rng, edges, cutoff);
         Self { tempering }
     }
 
+    /// Add a graph to be run with field `transverse` at `beta`.
     fn add_graph(&mut self, transverse: f64, beta: f64) {
         let rng = SmallRng::from_entropy();
         self.tempering.add_graph(rng, transverse, beta);
     }
 
+    /// Run `t` qmc timesteps on each graph.
     fn qmc_timesteps(&mut self, t: usize) {
         self.tempering.parallel_timesteps(t)
     }
 
+    /// Run QMC timesteps and sample every `sampling_freq` steps, take a parallel tempering step
+    /// every `replica_swap_freq` steps if nonzero.
     fn qmc_timesteps_sample(
         &mut self,
         py: Python,
@@ -77,7 +82,7 @@ impl LatticeTempering {
             time_to_swap -= t;
             remaining_timesteps -= t;
 
-            if time_to_swap == 0 {
+            if time_to_swap == 0 && replica_swap_freq > 0 {
                 self.tempering.parallel_tempering_step();
                 time_to_swap = replica_swap_freq;
             }
@@ -186,5 +191,23 @@ impl LatticeTempering {
 
         let py_corrs = corrs.into_pyarray(py).to_owned();
         Ok(py_corrs)
+    }
+
+    fn save_to_file(&self, path: &str) -> PyResult<()> {
+        let f = File::create(path)?;
+        let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
+        serde_cbor::to_writer(f, &tempering)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))
+    }
+
+    #[staticmethod]
+    fn read_from_file(path: &str) -> PyResult<Self> {
+        let f = File::open(path)?;
+        let tempering: DefaultSerializeTemperingContainer = serde_cbor::from_reader(f).map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
+        let container_rng = SmallRng::from_entropy();
+        let graph_rngs = [0].iter().cycle().map(|_| SmallRng::from_entropy());
+        Ok(Self {
+            tempering: tempering.into_tempering_container(container_rng, graph_rngs)
+        })
     }
 }
