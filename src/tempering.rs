@@ -205,7 +205,7 @@ impl LatticeTempering {
         let f = File::open(path)?;
         let tempering: DefaultSerializeTemperingContainer = serde_cbor::from_reader(f).map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
         let container_rng = SmallRng::from_entropy();
-        let graph_rngs = [0].iter().cycle().map(|_| SmallRng::from_entropy());
+        let graph_rngs = std::iter::repeat(()).map(|_| SmallRng::from_entropy());
         Ok(Self {
             tempering: tempering.into_tempering_container(container_rng, graph_rngs)
         })
