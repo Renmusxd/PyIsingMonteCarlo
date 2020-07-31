@@ -461,11 +461,6 @@ impl Lattice {
                                 |buf, s| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
                             );
                             e.fill(energy);
-                            // let (states, energy) =
-                            //     qmc_graph.timesteps_sample(timesteps, beta, sampling_freq);
-                            // s.iter_mut()
-                            //     .zip(states.into_iter().flatten())
-                            //     .for_each(|(s, b)| *s = b);
                         });
                     let py_energies = energies.into_pyarray(py).to_owned();
                     let py_states = states.into_pyarray(py).to_owned();

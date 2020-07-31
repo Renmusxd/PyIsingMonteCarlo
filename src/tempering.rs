@@ -203,11 +203,12 @@ impl LatticeTempering {
     #[staticmethod]
     fn read_from_file(path: &str) -> PyResult<Self> {
         let f = File::open(path)?;
-        let tempering: DefaultSerializeTemperingContainer = serde_cbor::from_reader(f).map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
+        let tempering: DefaultSerializeTemperingContainer = serde_cbor::from_reader(f)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
         let container_rng = SmallRng::from_entropy();
         let graph_rngs = std::iter::repeat(()).map(|_| SmallRng::from_entropy());
         Ok(Self {
-            tempering: tempering.into_tempering_container(container_rng, graph_rngs)
+            tempering: tempering.into_tempering_container(container_rng, graph_rngs),
         })
     }
 }
