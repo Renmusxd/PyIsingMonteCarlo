@@ -193,6 +193,12 @@ impl LatticeTempering {
         Ok(py_corrs)
     }
 
+    /// Get the total number of tempering swaps which have occurred.
+    fn get_total_swaps(&self) -> u64 {
+        self.tempering.get_total_swaps()
+    }
+
+    /// Save graphs to a filepath.
     fn save_to_file(&self, path: &str) -> PyResult<()> {
         let f = File::create(path)?;
         let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
@@ -200,6 +206,7 @@ impl LatticeTempering {
             .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))
     }
 
+    /// Load graphs from a filepath
     #[staticmethod]
     fn read_from_file(path: &str) -> PyResult<Self> {
         let f = File::open(path)?;
