@@ -21,8 +21,9 @@ serde_cbor = "^0.11"
 numpy = "^0.11"
 
 [dependencies.ising_monte_carlo]
-version = "^1.7"
-git = "https://github.com/Renmusxd/IsingMonteCarlo"
+version = "^2.0"
+#git = "https://github.com/Renmusxd/IsingMonteCarlo"
+path = "../IsingMonteCarlo"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]

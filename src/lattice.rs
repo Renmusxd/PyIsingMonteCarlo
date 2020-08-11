@@ -1,6 +1,7 @@
 extern crate ising_monte_carlo;
 use ising_monte_carlo::graph::*;
-use ising_monte_carlo::sse::qmc_graph::new_qmc;
+use ising_monte_carlo::sse::*;
+use ising_monte_carlo::sse::qmc_ising::*;
 use itertools::Itertools;
 use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
@@ -8,7 +9,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 use std::cmp::{max, min};
 
-/// A lattice for running monte carlo simulations. Takes a list of edges: ((a, b), j), ...
+/// A lattice for running ising monte carlo simulations. Takes a list of edges: ((a, b), j), ...
 /// Creates new initial conditions each time simulations are run, does not preserve any internal
 /// state for the lattice variables (spins).
 #[pyclass]

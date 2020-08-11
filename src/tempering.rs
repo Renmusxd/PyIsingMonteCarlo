@@ -1,7 +1,6 @@
 extern crate ising_monte_carlo;
-use self::ising_monte_carlo::parallel_tempering::autocorrelations::ParallelTemperingAutocorrelations;
-use self::ising_monte_carlo::parallel_tempering::serialization::*;
 use ising_monte_carlo::graph::*;
+use ising_monte_carlo::sse::*;
 use ising_monte_carlo::parallel_tempering::*;
 use ndarray::{Array, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
