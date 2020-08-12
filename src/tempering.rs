@@ -13,6 +13,9 @@ use std::fs::File;
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
 pub struct LatticeTempering {
+    nvars: usize,
+    edges: Vec<(Edge, f64)>,
+    cutoff: usize,
     tempering: DefaultTemperingContainer<SmallRng, SmallRng>,
 }
 
@@ -27,16 +30,16 @@ impl LatticeTempering {
             .map(|x| x + 1)
             .unwrap();
         let cutoff = nvars;
-
         let rng = SmallRng::from_entropy();
-        let tempering = DefaultTemperingContainer::<SmallRng, SmallRng>::new(rng, edges, cutoff);
-        Self { tempering }
+        let tempering = DefaultTemperingContainer::<SmallRng, SmallRng>::new(rng);
+        Self { nvars, edges, cutoff, tempering }
     }
 
     /// Add a graph to be run with field `transverse` at `beta`.
     fn add_graph(&mut self, transverse: f64, beta: f64) {
         let rng = SmallRng::from_entropy();
-        self.tempering.add_graph(rng, transverse, beta);
+        let qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(self.edges.clone(), transverse, self.cutoff, rng, None);
+        self.tempering.add_qmc_stepper(qmc, beta).unwrap();
     }
 
     /// Run `t` qmc timesteps on each graph.
@@ -58,7 +61,7 @@ impl LatticeTempering {
         let mut states = Array3::<bool>::default((
             self.tempering.num_graphs(),
             timesteps / sampling_freq,
-            self.tempering.nvars(),
+            self.nvars,
         ));
         let mut energy_acc = vec![0.0; self.tempering.num_graphs()];
 
@@ -201,7 +204,8 @@ impl LatticeTempering {
     fn save_to_file(&self, path: &str) -> PyResult<()> {
         let f = File::create(path)?;
         let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
-        serde_cbor::to_writer(f, &tempering)
+        let to_write = (self.nvars, self.edges.clone(), self.cutoff, tempering);
+        serde_cbor::to_writer(f, &to_write)
             .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))
     }
 
@@ -209,11 +213,14 @@ impl LatticeTempering {
     #[staticmethod]
     fn read_from_file(path: &str) -> PyResult<Self> {
         let f = File::open(path)?;
-        let tempering: DefaultSerializeTemperingContainer = serde_cbor::from_reader(f)
+        let (nvars, edges, cutoff, tempering): (usize, Vec<(Edge, f64)>, usize, DefaultSerializeTemperingContainer) = serde_cbor::from_reader(f)
             .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
         let container_rng = SmallRng::from_entropy();
         let graph_rngs = std::iter::repeat(()).map(|_| SmallRng::from_entropy());
         Ok(Self {
+            nvars,
+            edges,
+            cutoff,
             tempering: tempering.into_tempering_container(container_rng, graph_rngs),
         })
     }
