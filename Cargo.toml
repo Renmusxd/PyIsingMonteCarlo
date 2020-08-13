@@ -20,9 +20,8 @@ rayon = "^1.2"
 serde_cbor = "^0.11"
 numpy = "^0.11"
 
-[dependencies.ising_monte_carlo]
+[dependencies.qmc]
 version = "^2.0"
-git = "https://github.com/Renmusxd/IsingMonteCarlo"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]

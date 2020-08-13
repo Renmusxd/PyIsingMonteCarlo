@@ -1,10 +1,9 @@
-extern crate ising_monte_carlo;
-use ising_monte_carlo::graph::*;
-use ising_monte_carlo::sse::*;
-use ising_monte_carlo::parallel_tempering::*;
 use ndarray::{Array, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
+use qmc::classical::graph::Edge;
+use qmc::parallel_tempering::*;
+use qmc::sse::*;
 use rand::prelude::*;
 use rayon::prelude::*;
 use std::cmp::{max, min};
@@ -32,13 +31,24 @@ impl LatticeTempering {
         let cutoff = nvars;
         let rng = SmallRng::from_entropy();
         let tempering = DefaultTemperingContainer::<SmallRng, SmallRng>::new(rng);
-        Self { nvars, edges, cutoff, tempering }
+        Self {
+            nvars,
+            edges,
+            cutoff,
+            tempering,
+        }
     }
 
     /// Add a graph to be run with field `transverse` at `beta`.
     fn add_graph(&mut self, transverse: f64, beta: f64) {
         let rng = SmallRng::from_entropy();
-        let qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(self.edges.clone(), transverse, self.cutoff, rng, None);
+        let qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(
+            self.edges.clone(),
+            transverse,
+            self.cutoff,
+            rng,
+            None,
+        );
         self.tempering.add_qmc_stepper(qmc, beta).unwrap();
     }
 
@@ -213,7 +223,12 @@ impl LatticeTempering {
     #[staticmethod]
     fn read_from_file(path: &str) -> PyResult<Self> {
         let f = File::open(path)?;
-        let (nvars, edges, cutoff, tempering): (usize, Vec<(Edge, f64)>, usize, DefaultSerializeTemperingContainer) = serde_cbor::from_reader(f)
+        let (nvars, edges, cutoff, tempering): (
+            usize,
+            Vec<(Edge, f64)>,
+            usize,
+            DefaultSerializeTemperingContainer,
+        ) = serde_cbor::from_reader(f)
             .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
         let container_rng = SmallRng::from_entropy();
         let graph_rngs = std::iter::repeat(()).map(|_| SmallRng::from_entropy());

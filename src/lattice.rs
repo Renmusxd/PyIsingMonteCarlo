@@ -1,11 +1,9 @@
-extern crate ising_monte_carlo;
-use ising_monte_carlo::graph::*;
-use ising_monte_carlo::sse::*;
-use ising_monte_carlo::sse::qmc_ising::*;
 use itertools::Itertools;
 use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
+use qmc::classical::graph::*;
+use qmc::sse::qmc_ising::*;
 use rayon::prelude::*;
 use std::cmp::{max, min};
 
@@ -538,6 +536,76 @@ impl Lattice {
         }
     }
 
+    /// Run a quantum monte carlo simulation, get the variable's autocorrelation across time for
+    /// each experiment.
+    ///
+    /// # Arguments:
+    /// * `beta`: E/kt to use for the simulation.
+    /// * `timesteps`: number of timesteps to run.
+    /// * `num_experiments`: number of simultaneous experiments to run.
+    /// * `spin_products`: list of spins to take product of.
+    /// * `sampling_wait_buffer`: timesteps to wait before sampling begins.
+    /// * `sampling_freq`: frequency of sampling in number of timesteps.
+    fn run_quantum_monte_carlo_and_measure_spin_product_autocorrelation(
+        &self,
+        py: Python,
+        beta: f64,
+        timesteps: usize,
+        num_experiments: usize,
+        spin_products: Vec<Vec<usize>>,
+        sampling_wait_buffer: Option<usize>,
+        sampling_freq: Option<usize>,
+        use_fft: Option<bool>,
+    ) -> PyResult<Py<PyArray2<f64>>> {
+        let spin_refs = spin_products.iter().map(|p| p.as_slice()).collect::<Vec<_>>();
+        if self.biases.iter().any(|b| *b != 0.0) {
+            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                "Cannot run quantum monte carlo with spin biases".to_string(),
+            ))
+        } else {
+            match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
+                    let cutoff = self.nvars;
+
+                    let mut corrs = Array::default((num_experiments, timesteps));
+                    corrs
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .for_each(|mut corrs| {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+
+                            if sampling_wait_buffer > 0 {
+                                qmc_graph.timesteps(sampling_wait_buffer, beta);
+                            }
+
+                            let auto = qmc_graph.calculate_spin_product_autocorrelation(
+                                timesteps,
+                                beta,
+                                &spin_refs,
+                                sampling_freq,
+                                use_fft,
+                            );
+                            corrs
+                                .iter_mut()
+                                .zip(auto.into_iter())
+                                .for_each(|(c, v)| *c = v);
+                        });
+                    let py_corrs = corrs.into_pyarray(py).to_owned();
+                    Ok(py_corrs)
+                }
+            }
+        }
+    }
+
     /// Run a quantum monte carlo simulation, get the bond's autocorrelation across time for each
     /// experiment.
     ///
@@ -681,6 +749,23 @@ impl Lattice {
                     Ok((py_measures, py_energies))
                 }
             }
+        }
+    }
+
+    /// Get internal energy offset.
+    pub fn get_offset(&self) -> PyResult<f64> {
+        if let Some(transverse) = self.transverse {
+            let qmc_graph = new_qmc(
+                self.edges.clone(),
+                transverse,
+                1,
+                self.initial_state.clone(),
+            );
+            Ok(qmc_graph.get_offset())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                "Cannot construct QMC without transverse field".to_string(),
+            ))
         }
     }
 }
