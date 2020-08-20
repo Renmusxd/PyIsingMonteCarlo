@@ -4,6 +4,7 @@ use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::*;
 use qmc::sse::qmc_ising::*;
+use qmc::sse::QMCDebug;
 use rayon::prelude::*;
 use std::cmp::{max, min};
 
@@ -38,7 +39,7 @@ impl Lattice {
                 biases: vec![0.0; nvars],
                 transverse: None,
                 initial_state: None,
-                enable_semiclassical_updates: false
+                enable_semiclassical_updates: false,
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
@@ -568,7 +569,10 @@ impl Lattice {
         sampling_freq: Option<usize>,
         use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
-        let spin_refs = spin_products.iter().map(|p| p.as_slice()).collect::<Vec<_>>();
+        let spin_refs = spin_products
+            .iter()
+            .map(|p| p.as_slice())
+            .collect::<Vec<_>>();
         if self.biases.iter().any(|b| *b != 0.0) {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
                 "Cannot run quantum monte carlo with spin biases".to_string(),
@@ -780,6 +784,64 @@ impl Lattice {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
                 "Cannot construct QMC without transverse field".to_string(),
             ))
+        }
+    }
+
+    /// Get the average number of diagonal and offdiagonal ops over the course of `timesteps`.
+    /// # Arguments:
+    /// * `beta`: E/kt to use for the simulation.
+    /// * `timesteps`: number of timesteps to run.
+    /// * `num_experiments`: number of simultaneous experiments to run.
+    /// * `sampling_freq`: frequency of sampling in number of timesteps.
+    pub fn average_on_and_off_diagonal(
+        &self,
+        beta: f64,
+        timesteps: usize,
+        num_experiments: usize,
+        sampling_freq: Option<usize>,
+        sampling_wait_buffer: Option<usize>,
+    ) -> PyResult<(f64, f64)> {
+        match self.transverse {
+            None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                "Cannot run quantum monte carlo without transverse field.".to_string(),
+            )),
+            Some(transverse) => {
+                let cutoff = self.nvars;
+                let sampling_freq = sampling_freq.unwrap_or(1);
+                let (tot_diag, tot_offd, tot_n) = (0..num_experiments)
+                    .into_par_iter()
+                    .map(|_| {
+                        let mut qmc_graph = new_qmc(
+                            self.edges.clone(),
+                            transverse,
+                            cutoff,
+                            self.initial_state.clone(),
+                        );
+                        qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+
+                        if let Some(wait) = sampling_wait_buffer {
+                            qmc_graph.timesteps(wait, beta);
+                        };
+                        let mut t = 0;
+                        let mut tot_diag = 0;
+                        let mut tot_offd = 0;
+                        let mut n_samples = 0;
+                        while t < timesteps {
+                            qmc_graph.timesteps(sampling_freq, beta);
+                            let (diag, offd) = qmc_graph.count_diagonal_and_off();
+                            tot_diag += diag;
+                            tot_offd += offd;
+                            n_samples += 1;
+                            t += sampling_freq;
+                        }
+                        (tot_diag, tot_offd, n_samples)
+                    })
+                    .reduce(|| (0, 0, 0), |(a, b, c), (d, e, f)| (a + d, b + e, c + f));
+                Ok((
+                    tot_diag as f64 / tot_n as f64,
+                    tot_offd as f64 / tot_n as f64,
+                ))
+            }
         }
     }
 }

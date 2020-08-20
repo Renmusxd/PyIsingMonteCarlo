@@ -47,9 +47,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_interaction(mat.clone(), vars.clone()))
-            .map_err(|str| {
-                PyErr::new::<pyo3::exceptions::ValueError, String>(str)
-            })?;
+            .map_err(|str| PyErr::new::<pyo3::exceptions::ValueError, String>(str))?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -59,9 +57,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_interaction_and_offset(mat.clone(), vars.clone()))
-            .map_err(|str| {
-                PyErr::new::<pyo3::exceptions::ValueError, String>(str)
-            })?;
+            .map_err(|str| PyErr::new::<pyo3::exceptions::ValueError, String>(str))?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -71,9 +67,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_diagonal_interaction(mat.clone(), vars.clone()))
-            .map_err(|str| {
-                PyErr::new::<pyo3::exceptions::ValueError, String>(str)
-            })?;
+            .map_err(|str| PyErr::new::<pyo3::exceptions::ValueError, String>(str))?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -87,9 +81,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_diagonal_interaction_and_offset(mat.clone(), vars.clone()))
-            .map_err(|str| {
-                PyErr::new::<pyo3::exceptions::ValueError, String>(str)
-            })?;
+            .map_err(|str| PyErr::new::<pyo3::exceptions::ValueError, String>(str))?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -171,7 +163,8 @@ impl QMCRunner {
     ) -> PyResult<Py<PyArray2<f64>>> {
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         let mut corrs = Array::default((self.qmc.len(), timesteps));
-        self.qmc.par_iter_mut()
+        self.qmc
+            .par_iter_mut()
             .zip(corrs.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
             .for_each(|(qmc_graph, mut corrs)| {
                 if sampling_wait_buffer > 0 {
@@ -212,10 +205,14 @@ impl QMCRunner {
         sampling_freq: Option<usize>,
         use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
-        let spin_refs = spin_products.iter().map(|p| p.as_slice()).collect::<Vec<_>>();
+        let spin_refs = spin_products
+            .iter()
+            .map(|p| p.as_slice())
+            .collect::<Vec<_>>();
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         let mut corrs = Array::default((self.qmc.len(), timesteps));
-        self.qmc.par_iter_mut()
+        self.qmc
+            .par_iter_mut()
             .zip(corrs.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
             .for_each(|(qmc_graph, mut corrs)| {
                 if sampling_wait_buffer > 0 {
@@ -257,7 +254,8 @@ impl QMCRunner {
     ) -> PyResult<Py<PyArray2<f64>>> {
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         let mut corrs = Array::default((self.qmc.len(), timesteps));
-        self.qmc.par_iter_mut()
+        self.qmc
+            .par_iter_mut()
             .zip(corrs.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
             .for_each(|(qmc_graph, mut corrs)| {
                 if sampling_wait_buffer > 0 {
