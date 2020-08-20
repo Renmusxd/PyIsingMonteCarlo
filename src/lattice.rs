@@ -17,6 +17,7 @@ pub struct Lattice {
     biases: Vec<f64>,
     transverse: Option<f64>,
     initial_state: Option<Vec<bool>>,
+    enable_semiclassical_updates: bool,
 }
 
 #[pymethods]
@@ -37,12 +38,18 @@ impl Lattice {
                 biases: vec![0.0; nvars],
                 transverse: None,
                 initial_state: None,
+                enable_semiclassical_updates: false
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
                 "Must supply some edges for graph".to_string(),
             ))
         }
+    }
+
+    /// Turn on or off semiclassical updates.
+    fn set_enable_semiclassical_update(&mut self, enable_updates: bool) {
+        self.enable_semiclassical_updates = enable_updates
     }
 
     /// Set the bias of the variable `var` to `bias`.
@@ -380,6 +387,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
+                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
 
@@ -448,6 +456,8 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
+                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
                             };
@@ -513,6 +523,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
+                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -582,6 +593,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
+                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -648,6 +660,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
+                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -719,6 +732,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
+                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
