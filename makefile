@@ -1,5 +1,5 @@
 wheel:
-	maturin build --release --strip --no-sdist --rustc-extra-args="-C debug-assertions"
+	maturin build --release --strip --no-sdist
 
 .PHONY: clean
 clean:
