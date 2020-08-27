@@ -19,6 +19,8 @@ pub struct Lattice {
     transverse: Option<f64>,
     initial_state: Option<Vec<bool>>,
     enable_semiclassical_updates: bool,
+    // For semiclassical loop updates.
+    dual_graph: Option<Vec<Vec<usize>>>,
 }
 
 #[pymethods]
@@ -40,6 +42,7 @@ impl Lattice {
                 transverse: None,
                 initial_state: None,
                 enable_semiclassical_updates: false,
+                dual_graph: None,
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
@@ -51,6 +54,67 @@ impl Lattice {
     /// Turn on or off semiclassical updates.
     fn set_enable_semiclassical_update(&mut self, enable_updates: bool) {
         self.enable_semiclassical_updates = enable_updates
+    }
+
+    /// Turn a list of list of variables into a list of bonds to use to enable semiclassical loops.
+    fn enable_semiclassical_loops_from_vars(
+        &mut self,
+        dual_graph: Vec<Vec<usize>>,
+    ) -> PyResult<()> {
+        let lookup = |vars: (usize, usize)| {
+            self.edges
+                .iter()
+                .enumerate()
+                .find(|(_, (check_vars, _))| match (vars, *check_vars) {
+                    ((a, _), (c, _)) if a == c => true,
+                    ((_, b), (c, _)) if b == c => true,
+                    ((a, _), (_, d)) if a == d => true,
+                    ((_, b), (_, d)) if b == d => true,
+                    _ => false,
+                })
+                .map(|(i, _)| i)
+        };
+        let dual_graph: Vec<Vec<Option<usize>>> = dual_graph
+            .into_iter()
+            .map(|face| {
+                (0..face.len())
+                    .map(|indx| (face[indx], face[(indx + 1) % face.len()]))
+                    .map(lookup)
+                    .collect()
+            })
+            .collect();
+        dual_graph
+            .iter()
+            .try_for_each(|face| {
+                face.iter().try_for_each(|bond| match bond {
+                    Some(_) => Ok(()),
+                    None => Err(
+                        "All variable pairs in face must correspond to an edge in the graph"
+                            .to_string(),
+                    ),
+                })
+            })
+            .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+        let dual_graph = dual_graph
+            .into_iter()
+            .map(|face| face.into_iter().map(|x| x.unwrap()).collect())
+            .collect();
+        self.enable_semiclassical_loops(dual_graph);
+        Ok(())
+    }
+
+    /// Enable semiclassical loops.
+    ///
+    /// # Arguments
+    /// * `dual_graph`: A list of lists of bond indices surrounding faces on the dual graph, each
+    ///                 bond must touch exactly two faces.
+    fn enable_semiclassical_loops(&mut self, dual_graph: Vec<Vec<usize>>) {
+        self.dual_graph = Some(dual_graph);
+    }
+
+    /// Disable semiclassical loops.
+    fn disable_semiclassical_loops(&mut self) {
+        self.dual_graph = None;
     }
 
     /// Set the bias of the variable `var` to `bias`.
@@ -381,7 +445,7 @@ impl Lattice {
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .for_each(|(mut s, mut e)| {
+                        .try_for_each(|(mut s, mut e)| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -389,14 +453,19 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            if let Some(dual) = &self.dual_graph {
+                                qmc_graph.enable_semiclassical_loops(dual.clone())?;
+                            }
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
 
                             s.iter_mut()
                                 .zip(qmc_graph.into_vec().into_iter())
                                 .for_each(|(s, b)| *s = b);
-                            e.fill(average_energy)
-                        });
+                            e.fill(average_energy);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
 
                     let py_energies = energies.into_pyarray(py).to_owned();
                     let py_states = states.into_pyarray(py).to_owned();
@@ -450,7 +519,7 @@ impl Lattice {
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .for_each(|(mut s, mut e)| {
+                        .try_for_each(|(mut s, mut e)| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -458,6 +527,9 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            if let Some(dual) = &self.dual_graph {
+                                qmc_graph.enable_semiclassical_loops(dual.clone())?;
+                            }
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
@@ -471,7 +543,9 @@ impl Lattice {
                                 |buf, s| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
                             );
                             e.fill(energy);
-                        });
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
                     let py_energies = energies.into_pyarray(py).to_owned();
                     let py_states = states.into_pyarray(py).to_owned();
 
@@ -517,7 +591,7 @@ impl Lattice {
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .for_each(|mut corrs| {
+                        .try_for_each(|mut corrs| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -525,6 +599,9 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            if let Some(dual) = &self.dual_graph {
+                                qmc_graph.enable_semiclassical_loops(dual.clone())?;
+                            }
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -540,7 +617,9 @@ impl Lattice {
                                 .iter_mut()
                                 .zip(auto.into_iter())
                                 .for_each(|(c, v)| *c = v);
-                        });
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
                     let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
                 }
@@ -590,7 +669,7 @@ impl Lattice {
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .for_each(|mut corrs| {
+                        .try_for_each(|mut corrs| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -614,7 +693,9 @@ impl Lattice {
                                 .iter_mut()
                                 .zip(auto.into_iter())
                                 .for_each(|(c, v)| *c = v);
-                        });
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
                     let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
                 }
@@ -657,7 +738,7 @@ impl Lattice {
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .for_each(|mut corrs| {
+                        .try_for_each(|mut corrs| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -665,6 +746,9 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            if let Some(dual) = &self.dual_graph {
+                                qmc_graph.enable_semiclassical_loops(dual.clone())?;
+                            }
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -680,7 +764,9 @@ impl Lattice {
                                 .iter_mut()
                                 .zip(auto.into_iter())
                                 .for_each(|(c, v)| *c = v);
-                        });
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
 
                     let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
@@ -729,7 +815,7 @@ impl Lattice {
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .for_each(|(mut m, mut e)| {
+                        .try_for_each(|(mut m, mut e)| {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
@@ -737,6 +823,9 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            if let Some(dual) = &self.dual_graph {
+                                qmc_graph.enable_semiclassical_loops(dual.clone())?;
+                            }
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
@@ -760,7 +849,9 @@ impl Lattice {
                             );
                             m.fill(measure / steps as f64);
                             e.fill(average_energy);
-                        });
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
 
                     let py_measures = measures.into_pyarray(py).to_owned();
                     let py_energies = energies.into_pyarray(py).to_owned();
@@ -808,6 +899,19 @@ impl Lattice {
             Some(transverse) => {
                 let cutoff = self.nvars;
                 let sampling_freq = sampling_freq.unwrap_or(1);
+                // A hack to test the dual.
+                if let Some(dual) = &self.dual_graph {
+                    let mut qmc_graph = new_qmc(
+                        self.edges.clone(),
+                        transverse,
+                        cutoff,
+                        self.initial_state.clone(),
+                    );
+                    qmc_graph
+                        .enable_semiclassical_loops(dual.clone())
+                        .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+                }
+
                 let (tot_diag, tot_offd, tot_n) = (0..num_experiments)
                     .into_par_iter()
                     .map(|_| {
@@ -818,6 +922,9 @@ impl Lattice {
                             self.initial_state.clone(),
                         );
                         qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                        if let Some(dual) = &self.dual_graph {
+                            qmc_graph.enable_semiclassical_loops(dual.clone()).unwrap();
+                        }
 
                         if let Some(wait) = sampling_wait_buffer {
                             qmc_graph.timesteps(wait, beta);

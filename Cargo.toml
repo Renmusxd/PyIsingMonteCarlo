@@ -22,6 +22,7 @@ numpy = "^0.11"
 
 [dependencies.qmc]
 version = "^2.2"
+path = "../IsingMonteCarlo"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
