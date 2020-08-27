@@ -35,6 +35,9 @@ impl Lattice {
             .max()
             .map(|x| x + 1);
         if let Some(nvars) = nvars {
+            let edges = edges.into_iter().map(|(edge, j)| {
+                ((min(edge.0, edge.1), max(edge.0, edge.1)), j)
+            }).collect();
             Ok(Lattice {
                 nvars,
                 edges,
@@ -56,22 +59,14 @@ impl Lattice {
         self.enable_semiclassical_updates = enable_updates
     }
 
-    /// Turn a list of list of variables into a list of bonds to use to enable semiclassical loops.
-    fn enable_semiclassical_loops_from_vars(
-        &mut self,
-        dual_graph: Vec<Vec<usize>>,
-    ) -> PyResult<()> {
+    /// Make dual graph in terms of bonds from dual in terms of variables.
+    fn make_bonds_faces_from_vars(&self, dual_graph: Vec<Vec<usize>>) -> PyResult<Vec<Vec<usize>>> {
         let lookup = |vars: (usize, usize)| {
+            let vars = (min(vars.0, vars.1), max(vars.0, vars.1));
             self.edges
                 .iter()
                 .enumerate()
-                .find(|(_, (check_vars, _))| match (vars, *check_vars) {
-                    ((a, _), (c, _)) if a == c => true,
-                    ((_, b), (c, _)) if b == c => true,
-                    ((a, _), (_, d)) if a == d => true,
-                    ((_, b), (_, d)) if b == d => true,
-                    _ => false,
-                })
+                .find(|(_, (check_vars, _))| vars == *check_vars )
                 .map(|(i, _)| i)
         };
         let dual_graph: Vec<Vec<Option<usize>>> = dual_graph
@@ -99,6 +94,15 @@ impl Lattice {
             .into_iter()
             .map(|face| face.into_iter().map(|x| x.unwrap()).collect())
             .collect();
+        Ok(dual_graph)
+    }
+
+    /// Turn a list of list of variables into a list of bonds to use to enable semiclassical loops.
+    fn enable_semiclassical_loops_from_vars(
+        &mut self,
+        dual_graph: Vec<Vec<usize>>,
+    ) -> PyResult<()> {
+        let dual_graph = self.make_bonds_faces_from_vars(dual_graph)?;
         self.enable_semiclassical_loops(dual_graph);
         Ok(())
     }
