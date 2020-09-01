@@ -19,6 +19,7 @@ pub struct Lattice {
     transverse: Option<f64>,
     initial_state: Option<Vec<bool>>,
     enable_semiclassical_updates: bool,
+    enable_rvb_updates: bool,
 }
 
 #[pymethods]
@@ -40,6 +41,7 @@ impl Lattice {
                 transverse: None,
                 initial_state: None,
                 enable_semiclassical_updates: false,
+                enable_rvb_updates: false,
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
@@ -51,6 +53,11 @@ impl Lattice {
     /// Turn on or off semiclassical updates.
     fn set_enable_semiclassical_update(&mut self, enable_updates: bool) {
         self.enable_semiclassical_updates = enable_updates
+    }
+
+    /// Turn on or off semiclassical updates.
+    fn set_enable_rvb_update(&mut self, enable_updates: bool) {
+        self.enable_rvb_updates = enable_updates
     }
 
     /// Set the bias of the variable `var` to `bias`.
@@ -389,6 +396,7 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
 
@@ -458,6 +466,7 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
@@ -525,6 +534,7 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -598,6 +608,7 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -665,6 +676,7 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -737,6 +749,7 @@ impl Lattice {
                                 self.initial_state.clone(),
                             );
                             qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
@@ -818,6 +831,7 @@ impl Lattice {
                             self.initial_state.clone(),
                         );
                         qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
+                        qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                         if let Some(wait) = sampling_wait_buffer {
                             qmc_graph.timesteps(wait, beta);
@@ -834,6 +848,7 @@ impl Lattice {
                             n_samples += 1;
                             t += sampling_freq;
                         }
+                        println!("Succ: {}", qmc_graph.rvb_success_rate());
                         (tot_diag, tot_offd, n_samples)
                     })
                     .reduce(|| (0, 0, 0), |(a, b, c), (d, e, f)| (a + d, b + e, c + f));

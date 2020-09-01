@@ -2,7 +2,7 @@ use ndarray::{Array, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::Edge;
-use qmc::parallel_tempering::*;
+use qmc::sse::parallel_tempering::*;
 use qmc::sse::*;
 use rand::prelude::*;
 use rayon::prelude::*;
