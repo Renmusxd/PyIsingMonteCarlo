@@ -40,15 +40,17 @@ impl LatticeTempering {
     }
 
     /// Add a graph to be run with field `transverse` at `beta`.
-    fn add_graph(&mut self, transverse: f64, beta: f64) {
+    fn add_graph(&mut self, transverse: f64, beta: f64, enable_rvb_update: Option<bool>) {
         let rng = SmallRng::from_entropy();
-        let qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(
+        let rvb = enable_rvb_update.unwrap_or(false);
+        let mut qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(
             self.edges.clone(),
             transverse,
             self.cutoff,
             rng,
             None,
         );
+        qmc.set_run_rvb(rvb);
         self.tempering.add_qmc_stepper(qmc, beta).unwrap();
     }
 
