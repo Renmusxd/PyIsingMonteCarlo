@@ -18,7 +18,6 @@ pub struct Lattice {
     biases: Vec<f64>,
     transverse: Option<f64>,
     initial_state: Option<Vec<bool>>,
-    enable_semiclassical_updates: bool,
     enable_rvb_updates: bool,
 }
 
@@ -40,7 +39,6 @@ impl Lattice {
                 biases: vec![0.0; nvars],
                 transverse: None,
                 initial_state: None,
-                enable_semiclassical_updates: false,
                 enable_rvb_updates: false,
             })
         } else {
@@ -48,11 +46,6 @@ impl Lattice {
                 "Must supply some edges for graph".to_string(),
             ))
         }
-    }
-
-    /// Turn on or off semiclassical updates.
-    fn set_enable_semiclassical_update(&mut self, enable_updates: bool) {
-        self.enable_semiclassical_updates = enable_updates
     }
 
     /// Turn on or off semiclassical updates.
@@ -395,7 +388,6 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
@@ -465,7 +457,6 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if let Some(wait) = sampling_wait_buffer {
@@ -533,7 +524,6 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if sampling_wait_buffer > 0 {
@@ -607,7 +597,6 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if sampling_wait_buffer > 0 {
@@ -675,7 +664,6 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if sampling_wait_buffer > 0 {
@@ -748,7 +736,6 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                             if let Some(wait) = sampling_wait_buffer {
@@ -830,7 +817,6 @@ impl Lattice {
                             cutoff,
                             self.initial_state.clone(),
                         );
-                        qmc_graph.set_run_semiclassical(self.enable_semiclassical_updates);
                         qmc_graph.set_run_rvb(self.enable_rvb_updates);
 
                         if let Some(wait) = sampling_wait_buffer {
