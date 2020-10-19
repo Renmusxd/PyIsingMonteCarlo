@@ -47,7 +47,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_interaction(mat.clone(), vars.clone()))
-            .map_err(|str| PyErr::new::<pyo3::exceptions::ValueError, String>(str))?;
+            .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
         self.interactions.push((mat, vars));
         Ok(())
     }

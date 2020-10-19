@@ -381,22 +381,23 @@ impl Lattice {
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .for_each(|(mut s, mut e)| {
+                        .try_for_each(|(mut s, mut e)| -> Result<(), String> {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
 
                             s.iter_mut()
                                 .zip(qmc_graph.into_vec().into_iter())
                                 .for_each(|(s, b)| *s = b);
-                            e.fill(average_energy)
-                        });
+                            e.fill(average_energy);
+                            Ok(())
+                        }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
 
                     let py_energies = energies.into_pyarray(py).to_owned();
                     let py_states = states.into_pyarray(py).to_owned();
@@ -450,14 +451,14 @@ impl Lattice {
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .for_each(|(mut s, mut e)| {
+                        .try_for_each(|(mut s, mut e)| -> Result<(), String> {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
@@ -471,7 +472,8 @@ impl Lattice {
                                 |buf, s| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
                             );
                             e.fill(energy);
-                        });
+                            Ok(())
+                        }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
                     let py_energies = energies.into_pyarray(py).to_owned();
                     let py_states = states.into_pyarray(py).to_owned();
 
@@ -517,14 +519,14 @@ impl Lattice {
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .for_each(|mut corrs| {
+                        .try_for_each(|mut corrs| -> Result<(), String> {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -540,7 +542,8 @@ impl Lattice {
                                 .iter_mut()
                                 .zip(auto.into_iter())
                                 .for_each(|(c, v)| *c = v);
-                        });
+                            Ok(())
+                        }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
                     let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
                 }
@@ -590,14 +593,14 @@ impl Lattice {
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .for_each(|mut corrs| {
+                        .try_for_each(|mut corrs| -> Result<(), String> {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -614,7 +617,8 @@ impl Lattice {
                                 .iter_mut()
                                 .zip(auto.into_iter())
                                 .for_each(|(c, v)| *c = v);
-                        });
+                            Ok(())
+                        }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
                     let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
                 }
@@ -657,14 +661,14 @@ impl Lattice {
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .for_each(|mut corrs| {
+                        .try_for_each(|mut corrs| -> Result<(), String> {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
 
                             if sampling_wait_buffer > 0 {
                                 qmc_graph.timesteps(sampling_wait_buffer, beta);
@@ -680,7 +684,8 @@ impl Lattice {
                                 .iter_mut()
                                 .zip(auto.into_iter())
                                 .for_each(|(c, v)| *c = v);
-                        });
+                            Ok(())
+                        }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
 
                     let py_corrs = corrs.into_pyarray(py).to_owned();
                     Ok(py_corrs)
@@ -729,14 +734,14 @@ impl Lattice {
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .for_each(|(mut m, mut e)| {
+                        .try_for_each(|(mut m, mut e)| -> Result<(), String> {
                             let mut qmc_graph = new_qmc(
                                 self.edges.clone(),
                                 transverse,
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
 
                             if let Some(wait) = sampling_wait_buffer {
                                 qmc_graph.timesteps(wait, beta);
@@ -760,7 +765,8 @@ impl Lattice {
                             );
                             m.fill(measure / steps as f64);
                             e.fill(average_energy);
-                        });
+                            Ok(())
+                        }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
 
                     let py_measures = measures.into_pyarray(py).to_owned();
                     let py_energies = energies.into_pyarray(py).to_owned();
@@ -817,7 +823,8 @@ impl Lattice {
                             cutoff,
                             self.initial_state.clone(),
                         );
-                        qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                        // TODO catch this error.
+                        qmc_graph.set_run_rvb(self.enable_rvb_updates).unwrap();
 
                         if let Some(wait) = sampling_wait_buffer {
                             qmc_graph.timesteps(wait, beta);

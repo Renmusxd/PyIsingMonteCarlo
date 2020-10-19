@@ -40,7 +40,7 @@ impl LatticeTempering {
     }
 
     /// Add a graph to be run with field `transverse` at `beta`.
-    fn add_graph(&mut self, transverse: f64, beta: f64, enable_rvb_update: Option<bool>) {
+    fn add_graph(&mut self, transverse: f64, beta: f64, enable_rvb_update: Option<bool>) -> PyResult<()> {
         let rng = SmallRng::from_entropy();
         let rvb = enable_rvb_update.unwrap_or(false);
         let mut qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(
@@ -50,8 +50,8 @@ impl LatticeTempering {
             rng,
             None,
         );
-        qmc.set_run_rvb(rvb);
-        self.tempering.add_qmc_stepper(qmc, beta).unwrap();
+        qmc.set_run_rvb(rvb).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+        self.tempering.add_qmc_stepper(qmc, beta).map_err(|_| PyErr::new::<pyo3::exceptions::ValueError, String>("Error Adding QMC Stepper".to_string()))
     }
 
     /// Run `t` qmc timesteps on each graph.
