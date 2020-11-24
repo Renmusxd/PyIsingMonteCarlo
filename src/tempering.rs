@@ -40,12 +40,20 @@ impl LatticeTempering {
     }
 
     /// Add a graph to be run with field `transverse` at `beta`.
-    fn add_graph(&mut self, transverse: f64, longitudinal: f64, beta: f64, enable_rvb_update: Option<bool>, enable_heatbath_update: Option<bool>) -> PyResult<()> {
+    fn add_graph(&mut self, transverse: f64, longitudinal: f64, beta: f64, edges: Option<Vec<(Edge, f64)>>, enable_rvb_update: Option<bool>, enable_heatbath_update: Option<bool>) -> PyResult<()> {
+        let edges = match (edges, &self.edges) {
+            (Some(edges), _) => {
+                edges
+            }
+            (None, edges) => {
+                edges.clone()
+            }
+        };
         let rng = SmallRng::from_entropy();
         let rvb = enable_rvb_update.unwrap_or(false);
         let heatbath = enable_heatbath_update.unwrap_or(false);
         let mut qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(
-            self.edges.clone(),
+            edges,
             transverse,
             longitudinal,
             self.cutoff,
