@@ -62,7 +62,7 @@ impl LatticeTempering {
         );
         qmc.set_run_rvb(rvb).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
         qmc.set_enable_heatbath(heatbath);
-        self.tempering.add_qmc_stepper(qmc, beta).map_err(|_| PyErr::new::<pyo3::exceptions::ValueError, String>("Error Adding QMC Stepper".to_string()))
+        self.tempering.add_qmc_stepper(qmc, beta).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)
     }
 
     /// Run `t` qmc timesteps on each graph.
