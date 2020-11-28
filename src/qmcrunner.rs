@@ -47,7 +47,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_interaction(mat.clone(), vars.clone()))
-            .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -57,7 +57,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_interaction_and_offset(mat.clone(), vars.clone()))
-            .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -67,7 +67,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_diagonal_interaction(mat.clone(), vars.clone()))
-            .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
         self.interactions.push((mat, vars));
         Ok(())
     }
@@ -81,7 +81,7 @@ impl QMCRunner {
         self.qmc
             .iter_mut()
             .try_for_each(|qmc| qmc.make_diagonal_interaction_and_offset(mat.clone(), vars.clone()))
-            .map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
         self.interactions.push((mat, vars));
         Ok(())
     }

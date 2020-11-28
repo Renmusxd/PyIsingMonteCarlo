@@ -40,14 +40,18 @@ impl LatticeTempering {
     }
 
     /// Add a graph to be run with field `transverse` at `beta`.
-    fn add_graph(&mut self, transverse: f64, longitudinal: f64, beta: f64, edges: Option<Vec<(Edge, f64)>>, enable_rvb_update: Option<bool>, enable_heatbath_update: Option<bool>) -> PyResult<()> {
+    fn add_graph(
+        &mut self,
+        transverse: f64,
+        longitudinal: f64,
+        beta: f64,
+        edges: Option<Vec<(Edge, f64)>>,
+        enable_rvb_update: Option<bool>,
+        enable_heatbath_update: Option<bool>,
+    ) -> PyResult<()> {
         let edges = match (edges, &self.edges) {
-            (Some(edges), _) => {
-                edges
-            }
-            (None, edges) => {
-                edges.clone()
-            }
+            (Some(edges), _) => edges,
+            (None, edges) => edges.clone(),
         };
         let rng = SmallRng::from_entropy();
         let rvb = enable_rvb_update.unwrap_or(false);
@@ -60,9 +64,12 @@ impl LatticeTempering {
             rng,
             None,
         );
-        qmc.set_run_rvb(rvb).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+        qmc.set_run_rvb(rvb)
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
         qmc.set_enable_heatbath(heatbath);
-        self.tempering.add_qmc_stepper(qmc, beta).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)
+        self.tempering
+            .add_qmc_stepper(qmc, beta)
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)
     }
 
     /// Run `t` qmc timesteps on each graph.
@@ -229,7 +236,7 @@ impl LatticeTempering {
         let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
         let to_write = (self.nvars, self.edges.clone(), self.cutoff, tempering);
         serde_cbor::to_writer(f, &to_write)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))
     }
 
     /// Load graphs from a filepath
@@ -242,7 +249,7 @@ impl LatticeTempering {
             usize,
             DefaultSerializeTemperingContainer,
         ) = serde_cbor::from_reader(f)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::IOError, String>(err.to_string()))?;
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))?;
         let container_rng = SmallRng::from_entropy();
         let graph_rngs = std::iter::repeat(()).map(|_| SmallRng::from_entropy());
         Ok(Self {

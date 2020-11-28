@@ -10,7 +10,7 @@ use std::cmp::{max, min};
 
 pub enum BiasType {
     INDIVIDUAL(Vec<f64>),
-    GLOBAL(f64)
+    GLOBAL(f64),
 }
 
 /// A lattice for running ising monte carlo simulations. Takes a list of edges: ((a, b), j), ...
@@ -49,7 +49,7 @@ impl Lattice {
                 enable_heatbath: false,
             })
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Must supply some edges for graph".to_string(),
             ))
         }
@@ -81,10 +81,12 @@ impl Lattice {
 
             Ok(())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(format!(
-                "Index out of bounds: variable {} out of {}",
-                var, self.nvars
-            )))
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                format!(
+                    "Index out of bounds: variable {} out of {}",
+                    var, self.nvars
+                ),
+            ))
         }
     }
 
@@ -102,7 +104,7 @@ impl Lattice {
             self.transverse = None;
             Ok(())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Transverse field must be positive".to_string(),
             ))
         }
@@ -117,7 +119,7 @@ impl Lattice {
             self.initial_state = None;
             Ok(())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Initial state must be of the same size as biases, or 0.".to_string(),
             ))
         }
@@ -167,7 +169,7 @@ impl Lattice {
             let py_states = states.into_pyarray(py).to_owned();
             Ok((py_energies, py_states))
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run classic monte carlo with transverse field".to_string(),
             ))
         }
@@ -230,7 +232,7 @@ impl Lattice {
 
             Ok((py_energies, py_states))
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run classic monte carlo with transverse field".to_string(),
             ))
         }
@@ -310,7 +312,7 @@ impl Lattice {
 
             Ok((py_energies, py_states))
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run classic monte carlo with transverse field".to_string(),
             ))
         }
@@ -388,7 +390,7 @@ impl Lattice {
 
             Ok((py_energies, py_states))
         } else {
-            Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run classic monte carlo with transverse field".to_string(),
             ))
         }
@@ -408,51 +410,50 @@ impl Lattice {
         num_experiments: usize,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let cutoff = self.nvars;
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let cutoff = self.nvars;
 
-                        let mut energies = Array::default((num_experiments,));
-                        let mut states = Array2::<bool>::default((num_experiments, self.nvars));
+                    let mut energies = Array::default((num_experiments,));
+                    let mut states = Array2::<bool>::default((num_experiments, self.nvars));
 
-                        states
-                            .axis_iter_mut(ndarray::Axis(0))
-                            .into_par_iter()
-                            .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                            .try_for_each(|(mut s, mut e)| -> Result<(), String> {
-                                let mut qmc_graph = new_qmc(
-                                    self.edges.clone(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    self.initial_state.clone(),
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
+                    states
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                        .try_for_each(|(mut s, mut e)| -> Result<(), String> {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
-                                let average_energy = qmc_graph.timesteps(timesteps, beta);
+                            let average_energy = qmc_graph.timesteps(timesteps, beta);
 
-                                s.iter_mut()
-                                    .zip(qmc_graph.into_vec().into_iter())
-                                    .for_each(|(s, b)| *s = b);
-                                e.fill(average_energy);
-                                Ok(())
-                            }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+                            s.iter_mut()
+                                .zip(qmc_graph.into_vec().into_iter())
+                                .for_each(|(s, b)| *s = b);
+                            e.fill(average_energy);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
 
-                        let py_energies = energies.into_pyarray(py).to_owned();
-                        let py_states = states.into_pyarray(py).to_owned();
+                    let py_energies = energies.into_pyarray(py).to_owned();
+                    let py_states = states.into_pyarray(py).to_owned();
 
-                        Ok((py_energies, py_states))
-                    }
+                    Ok((py_energies, py_states))
                 }
-            }
+            },
         }
     }
 
@@ -475,62 +476,61 @@ impl Lattice {
         sampling_freq: Option<usize>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray3<bool>>)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let sampling_wait_buffer =
-                            sampling_wait_buffer.map(|wait| min(wait, timesteps));
-                        let cutoff = self.nvars;
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let sampling_wait_buffer =
+                        sampling_wait_buffer.map(|wait| min(wait, timesteps));
+                    let cutoff = self.nvars;
 
-                        let mut energies = Array::default((num_experiments, ));
-                        let mut states = Array3::<bool>::default((
-                            num_experiments,
-                            timesteps / sampling_freq.unwrap_or(1),
-                            self.nvars,
-                        ));
+                    let mut energies = Array::default((num_experiments,));
+                    let mut states = Array3::<bool>::default((
+                        num_experiments,
+                        timesteps / sampling_freq.unwrap_or(1),
+                        self.nvars,
+                    ));
 
-                        states
-                            .axis_iter_mut(ndarray::Axis(0))
-                            .into_par_iter()
-                            .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                            .try_for_each(|(mut s, mut e)| -> Result<(), String> {
-                                let mut qmc_graph = new_qmc(
-                                    self.edges.clone(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    self.initial_state.clone(),
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
+                    states
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                        .try_for_each(|(mut s, mut e)| -> Result<(), String> {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
-                                if let Some(wait) = sampling_wait_buffer {
-                                    qmc_graph.timesteps(wait, beta);
-                                };
+                            if let Some(wait) = sampling_wait_buffer {
+                                qmc_graph.timesteps(wait, beta);
+                            };
 
-                                let energy = qmc_graph.timesteps_sample_iter_zip(
-                                    timesteps,
-                                    beta,
-                                    sampling_freq,
-                                    s.iter_mut().chunks(self.nvars).into_iter(),
-                                    |buf, s| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
-                                );
-                                e.fill(energy);
-                                Ok(())
-                            }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
-                        let py_energies = energies.into_pyarray(py).to_owned();
-                        let py_states = states.into_pyarray(py).to_owned();
+                            let energy = qmc_graph.timesteps_sample_iter_zip(
+                                timesteps,
+                                beta,
+                                sampling_freq,
+                                s.iter_mut().chunks(self.nvars).into_iter(),
+                                |buf, s| buf.zip(s.iter()).for_each(|(b, s)| *b = *s),
+                            );
+                            e.fill(energy);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
+                    let py_energies = energies.into_pyarray(py).to_owned();
+                    let py_states = states.into_pyarray(py).to_owned();
 
-                        Ok((py_energies, py_states))
-                    }
+                    Ok((py_energies, py_states))
                 }
-            }
+            },
         }
     }
 
@@ -554,54 +554,53 @@ impl Lattice {
         use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
-                        let cutoff = self.nvars;
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
+                    let cutoff = self.nvars;
 
-                        let mut corrs = Array::default((num_experiments, timesteps));
-                        corrs
-                            .axis_iter_mut(ndarray::Axis(0))
-                            .into_par_iter()
-                            .try_for_each(|mut corrs| -> Result<(), String> {
-                                let mut qmc_graph = new_qmc(
-                                    self.edges.clone(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    self.initial_state.clone(),
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
+                    let mut corrs = Array::default((num_experiments, timesteps));
+                    corrs
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .try_for_each(|mut corrs| -> Result<(), String> {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
-                                if sampling_wait_buffer > 0 {
-                                    qmc_graph.timesteps(sampling_wait_buffer, beta);
-                                }
+                            if sampling_wait_buffer > 0 {
+                                qmc_graph.timesteps(sampling_wait_buffer, beta);
+                            }
 
-                                let auto = qmc_graph.calculate_variable_autocorrelation(
-                                    timesteps,
-                                    beta,
-                                    sampling_freq,
-                                    use_fft,
-                                );
-                                corrs
-                                    .iter_mut()
-                                    .zip(auto.into_iter())
-                                    .for_each(|(c, v)| *c = v);
-                                Ok(())
-                            }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
-                        let py_corrs = corrs.into_pyarray(py).to_owned();
-                        Ok(py_corrs)
-                    }
+                            let auto = qmc_graph.calculate_variable_autocorrelation(
+                                timesteps,
+                                beta,
+                                sampling_freq,
+                                use_fft,
+                            );
+                            corrs
+                                .iter_mut()
+                                .zip(auto.into_iter())
+                                .for_each(|(c, v)| *c = v);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
+                    let py_corrs = corrs.into_pyarray(py).to_owned();
+                    Ok(py_corrs)
                 }
-            }
+            },
         }
     }
 
@@ -631,55 +630,54 @@ impl Lattice {
             .map(|p| p.as_slice())
             .collect::<Vec<_>>();
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
-                        let cutoff = self.nvars;
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
+                    let cutoff = self.nvars;
 
-                        let mut corrs = Array::default((num_experiments, timesteps));
-                        corrs
-                            .axis_iter_mut(ndarray::Axis(0))
-                            .into_par_iter()
-                            .try_for_each(|mut corrs| -> Result<(), String> {
-                                let mut qmc_graph = new_qmc(
-                                    self.edges.clone(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    self.initial_state.clone(),
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
+                    let mut corrs = Array::default((num_experiments, timesteps));
+                    corrs
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .try_for_each(|mut corrs| -> Result<(), String> {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
-                                if sampling_wait_buffer > 0 {
-                                    qmc_graph.timesteps(sampling_wait_buffer, beta);
-                                }
+                            if sampling_wait_buffer > 0 {
+                                qmc_graph.timesteps(sampling_wait_buffer, beta);
+                            }
 
-                                let auto = qmc_graph.calculate_spin_product_autocorrelation(
-                                    timesteps,
-                                    beta,
-                                    &spin_refs,
-                                    sampling_freq,
-                                    use_fft,
-                                );
-                                corrs
-                                    .iter_mut()
-                                    .zip(auto.into_iter())
-                                    .for_each(|(c, v)| *c = v);
-                                Ok(())
-                            }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
-                        let py_corrs = corrs.into_pyarray(py).to_owned();
-                        Ok(py_corrs)
-                    }
+                            let auto = qmc_graph.calculate_spin_product_autocorrelation(
+                                timesteps,
+                                beta,
+                                &spin_refs,
+                                sampling_freq,
+                                use_fft,
+                            );
+                            corrs
+                                .iter_mut()
+                                .zip(auto.into_iter())
+                                .for_each(|(c, v)| *c = v);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
+                    let py_corrs = corrs.into_pyarray(py).to_owned();
+                    Ok(py_corrs)
                 }
-            }
+            },
         }
     }
 
@@ -703,54 +701,53 @@ impl Lattice {
         use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
-                        let cutoff = self.nvars;
-                        let mut corrs = Array::default((num_experiments, timesteps));
-                        corrs
-                            .axis_iter_mut(ndarray::Axis(0))
-                            .into_par_iter()
-                            .try_for_each(|mut corrs| -> Result<(), String> {
-                                let mut qmc_graph = new_qmc(
-                                    self.edges.clone(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    self.initial_state.clone(),
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
+                    let cutoff = self.nvars;
+                    let mut corrs = Array::default((num_experiments, timesteps));
+                    corrs
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .try_for_each(|mut corrs| -> Result<(), String> {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
-                                if sampling_wait_buffer > 0 {
-                                    qmc_graph.timesteps(sampling_wait_buffer, beta);
-                                }
+                            if sampling_wait_buffer > 0 {
+                                qmc_graph.timesteps(sampling_wait_buffer, beta);
+                            }
 
-                                let auto = qmc_graph.calculate_bond_autocorrelation(
-                                    timesteps,
-                                    beta,
-                                    sampling_freq,
-                                    use_fft,
-                                );
-                                corrs
-                                    .iter_mut()
-                                    .zip(auto.into_iter())
-                                    .for_each(|(c, v)| *c = v);
-                                Ok(())
-                            }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+                            let auto = qmc_graph.calculate_bond_autocorrelation(
+                                timesteps,
+                                beta,
+                                sampling_freq,
+                                use_fft,
+                            );
+                            corrs
+                                .iter_mut()
+                                .zip(auto.into_iter())
+                                .for_each(|(c, v)| *c = v);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
 
-                        let py_corrs = corrs.into_pyarray(py).to_owned();
-                        Ok(py_corrs)
-                    }
+                    let py_corrs = corrs.into_pyarray(py).to_owned();
+                    Ok(py_corrs)
                 }
-            }
+            },
         }
     }
 
@@ -775,74 +772,73 @@ impl Lattice {
         exponent: Option<i32>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray1<f64>>)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let cutoff = self.nvars;
-                        let (down_m, up_m) = spin_measurement.unwrap_or((-1.0, 1.0));
-                        let exponent = exponent.unwrap_or(1);
-                        let mut energies = Array::default((num_experiments, ));
-                        let mut measures = Array::default((num_experiments, ));
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let cutoff = self.nvars;
+                    let (down_m, up_m) = spin_measurement.unwrap_or((-1.0, 1.0));
+                    let exponent = exponent.unwrap_or(1);
+                    let mut energies = Array::default((num_experiments,));
+                    let mut measures = Array::default((num_experiments,));
 
-                        measures
-                            .axis_iter_mut(ndarray::Axis(0))
-                            .into_par_iter()
-                            .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                            .try_for_each(|(mut m, mut e)| -> Result<(), String> {
-                                let mut qmc_graph = new_qmc(
-                                    self.edges.clone(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    self.initial_state.clone(),
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
+                    measures
+                        .axis_iter_mut(ndarray::Axis(0))
+                        .into_par_iter()
+                        .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+                        .try_for_each(|(mut m, mut e)| -> Result<(), String> {
+                            let mut qmc_graph = new_qmc(
+                                self.edges.clone(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                self.initial_state.clone(),
+                            );
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
-                                if let Some(wait) = sampling_wait_buffer {
-                                    qmc_graph.timesteps(wait, beta);
-                                };
-                                let ((measure, steps), average_energy) = qmc_graph.timesteps_measure(
-                                    timesteps,
-                                    beta,
-                                    (0.0, 0),
-                                    |(acc, step), state| {
-                                        let acc = state
-                                            .iter()
-                                            .fold(
-                                                0.0,
-                                                |acc, b| if *b { acc + up_m } else { acc + down_m },
-                                            )
-                                            .powi(exponent)
-                                            + acc;
-                                        (acc, step + 1)
-                                    },
-                                    sampling_freq,
-                                );
-                                m.fill(measure / steps as f64);
-                                e.fill(average_energy);
-                                Ok(())
-                            }).map_err(PyErr::new::<pyo3::exceptions::ValueError, String>)?;
+                            if let Some(wait) = sampling_wait_buffer {
+                                qmc_graph.timesteps(wait, beta);
+                            };
+                            let ((measure, steps), average_energy) = qmc_graph.timesteps_measure(
+                                timesteps,
+                                beta,
+                                (0.0, 0),
+                                |(acc, step), state| {
+                                    let acc = state
+                                        .iter()
+                                        .fold(
+                                            0.0,
+                                            |acc, b| if *b { acc + up_m } else { acc + down_m },
+                                        )
+                                        .powi(exponent)
+                                        + acc;
+                                    (acc, step + 1)
+                                },
+                                sampling_freq,
+                            );
+                            m.fill(measure / steps as f64);
+                            e.fill(average_energy);
+                            Ok(())
+                        })
+                        .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
 
-                        let py_measures = measures.into_pyarray(py).to_owned();
-                        let py_energies = energies.into_pyarray(py).to_owned();
-                        Ok((py_measures, py_energies))
-                    }
+                    let py_measures = measures.into_pyarray(py).to_owned();
+                    let py_energies = energies.into_pyarray(py).to_owned();
+                    Ok((py_measures, py_energies))
                 }
-            }
+            },
         }
     }
 
     /// Get internal energy offset.
     pub fn get_offset(&self) -> PyResult<f64> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
             BiasType::GLOBAL(bias) => {
@@ -856,7 +852,7 @@ impl Lattice {
                     );
                     Ok(qmc_graph.get_offset())
                 } else {
-                    Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                    Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                         "Cannot construct QMC without transverse field".to_string(),
                     ))
                 }
@@ -879,12 +875,12 @@ impl Lattice {
         sampling_wait_buffer: Option<usize>,
     ) -> PyResult<(f64, f64, f64)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
             BiasType::GLOBAL(bias) => {
                 match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::ValueError, String>(
+                    None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                         "Cannot run quantum monte carlo without transverse field.".to_string(),
                     )),
                     Some(transverse) => {
@@ -923,7 +919,10 @@ impl Lattice {
                                 }
                                 (tot_diag, tot_offd, tot_consts, n_samples)
                             })
-                            .reduce(|| (0, 0, 0, 0), |(a, b, c, d), (e, f, g, h)| (a + e, b + f, c + g, d + h));
+                            .reduce(
+                                || (0, 0, 0, 0),
+                                |(a, b, c, d), (e, f, g, h)| (a + e, b + f, c + g, d + h),
+                            );
                         Ok((
                             tot_diag as f64 / tot_n as f64,
                             tot_offd as f64 / tot_n as f64,
