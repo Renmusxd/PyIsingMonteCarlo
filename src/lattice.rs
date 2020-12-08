@@ -190,13 +190,17 @@ impl Lattice {
         num_experiments: usize,
         only_basic_moves: Option<bool>,
         thermalization_time: Option<usize>,
+        sampling_freq: Option<usize>,
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray3<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
             let thermalization_time = thermalization_time.unwrap_or(0);
 
-            let mut energies = Array2::<f64>::default((num_experiments, timesteps));
-            let mut states = Array3::<bool>::default((num_experiments, timesteps, self.nvars));
+            let sampling_freq = sampling_freq.unwrap_or(1);
+            let n_samples = timesteps / sampling_freq;
+
+            let mut energies = Array2::<f64>::default((num_experiments, n_samples));
+            let mut states = Array3::<bool>::default((num_experiments, n_samples, self.nvars));
 
             let biases = match &self.biases {
                 BiasType::GLOBAL(b) => vec![*b; self.nvars],
@@ -217,7 +221,9 @@ impl Lattice {
                     s.axis_iter_mut(ndarray::Axis(0)).zip(e.iter_mut()).fold(
                         gs,
                         |mut gs, (mut s, e)| {
-                            gs.do_time_step(beta, only_basic_moves).unwrap();
+                            for _ in 0 .. sampling_freq {
+                                gs.do_time_step(beta, only_basic_moves).unwrap();
+                            }
                             s.iter_mut()
                                 .zip(gs.state_ref().iter().cloned())
                                 .for_each(|(s, b)| *s = b);
