@@ -132,6 +132,7 @@ impl Lattice {
     /// * `timesteps`: number of timesteps to run.
     /// * `num_experiments`: number of simultaneous experiments to run.
     /// * `only_basic_moves`: disallow things other than simple spin flips.
+    /// * `edge_move_importance_sampling`: Weight the attempts at edge flips by their energy cost.
     fn run_monte_carlo(
         &self,
         py: Python,
@@ -139,9 +140,11 @@ impl Lattice {
         timesteps: usize,
         num_experiments: usize,
         only_basic_moves: Option<bool>,
+        edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
+            let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
 
             let mut energies = Array::default((num_experiments,));
             let mut states = Array2::<bool>::default((num_experiments, self.nvars));
@@ -156,6 +159,7 @@ impl Lattice {
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
                 .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &biases);
+                    gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
@@ -182,6 +186,7 @@ impl Lattice {
     /// * `timesteps`: number of timesteps to run.
     /// * `num_experiments`: number of simultaneous experiments to run.
     /// * `only_basic_moves`: disallow things other than simple spin flips.
+    /// * `edge_move_importance_sampling`: Weight the attempts at edge flips by their energy cost.
     fn run_monte_carlo_sampling(
         &self,
         py: Python,
@@ -191,9 +196,11 @@ impl Lattice {
         only_basic_moves: Option<bool>,
         thermalization_time: Option<usize>,
         sampling_freq: Option<usize>,
+        edge_move_importance_sampling: Option<bool>
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray3<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
+            let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
             let thermalization_time = thermalization_time.unwrap_or(0);
 
             let sampling_freq = sampling_freq.unwrap_or(1);
@@ -212,6 +219,7 @@ impl Lattice {
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
                 .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &biases);
+                    gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
@@ -251,6 +259,7 @@ impl Lattice {
     /// * `timesteps`: number of timesteps to run.
     /// * `num_experiments`: number of simultaneous experiments to run.
     /// * `only_basic_moves`: disallow things other than simple spin flips.
+    /// * `edge_move_importance_sampling`: Weight the attempts at edge flips by their energy cost.
     fn run_monte_carlo_annealing(
         &self,
         py: Python,
@@ -258,9 +267,11 @@ impl Lattice {
         timesteps: usize,
         num_experiments: usize,
         only_basic_moves: Option<bool>,
+        edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
+            let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
             betas.sort_by_key(|(i, _)| *i);
             if betas.is_empty() {
                 betas.push((0, 1.0));
@@ -291,6 +302,7 @@ impl Lattice {
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
                 .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &biases);
+                    gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
@@ -331,6 +343,7 @@ impl Lattice {
     /// * `timesteps`: number of timesteps to run.
     /// * `num_experiments`: number of simultaneous experiments to run.
     /// * `only_basic_moves`: disallow things other than simple spin flips.
+    /// * `edge_move_importance_sampling`: Weight the attempts at edge flips by their energy cost.
     fn run_monte_carlo_annealing_and_get_energies(
         &self,
         py: Python,
@@ -338,9 +351,11 @@ impl Lattice {
         timesteps: usize,
         num_experiments: usize,
         only_basic_moves: Option<bool>,
+        edge_move_importance_sampling: Option<bool>
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
+            let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
             betas.sort_by_key(|(i, _)| *i);
             if betas.is_empty() {
                 betas.push((0, 1.0));
@@ -371,6 +386,7 @@ impl Lattice {
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
                 .for_each(|(mut s, mut e)| {
                     let mut gs = GraphState::new(&self.edges, &biases);
+                    gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
