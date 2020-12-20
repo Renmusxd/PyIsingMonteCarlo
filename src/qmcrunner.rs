@@ -14,6 +14,7 @@ use std::cmp::min;
 pub struct QMCRunner {
     nvars: usize,
     do_loop_updates: bool,
+    do_heatbath: bool,
     interactions: Vec<(Vec<f64>, Vec<usize>)>,
     qmc: Vec<DefaultQMC<SmallRng>>,
 }
@@ -26,6 +27,7 @@ impl QMCRunner {
         Self {
             nvars,
             do_loop_updates: false,
+            do_heatbath: false,
             interactions: Vec::default(),
             qmc: (0..num_experiments)
                 .map(|_| DefaultQMC::new(nvars, SmallRng::from_entropy(), false))
@@ -86,6 +88,14 @@ impl QMCRunner {
         Ok(())
     }
 
+    /// Set whether the experiments are allowed to do heatbath updates.
+    fn set_do_heatbath(&mut self, do_heatbath: bool) {
+        self.do_heatbath = do_heatbath;
+        self.qmc
+            .iter_mut()
+            .for_each(|qmc| qmc.set_do_heatbath(do_heatbath))
+    }
+
     /// Set whether the experiments are allowed to do loop updates.
     fn set_do_loop_updates(&mut self, do_loop_updates: bool) {
         self.do_loop_updates = do_loop_updates;
@@ -142,6 +152,50 @@ impl QMCRunner {
         let py_states = states.into_pyarray(py).to_owned();
 
         Ok((py_energies, py_states))
+    }
+
+
+    /// Run a quantum monte carlo simulation, sample the bonds at each `sampling_freq`, returns the
+    /// average number of each.
+    ///
+    /// # Arguments:
+    /// * `beta`: E/kt to use for the simulation.
+    /// * `timesteps`: number of timesteps to sample.
+    /// * `sampling_wait_buffer`: timesteps to wait before sampling begins.
+    /// * `sampling_freq`: frequency of sampling in number of timesteps.
+    fn run_bond_sampling(
+        &mut self,
+        py: Python,
+        beta: f64,
+        timesteps: usize,
+        sampling_wait_buffer: Option<usize>,
+        sampling_freq: Option<usize>,
+    ) -> PyResult<Py<PyArray3<usize>>> {
+        let sampling_wait_buffer = sampling_wait_buffer.map(|wait| min(wait, timesteps));
+
+        let nbonds = self.interactions.len();
+        let mut bonds = Array::default((self.qmc.len(),timesteps / sampling_freq.unwrap_or(1), nbonds));
+
+        self.qmc
+            .par_iter_mut()
+            .zip(bonds.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
+            .for_each(|(qmc_graph, mut bs)| {
+                if let Some(wait) = sampling_wait_buffer {
+                    qmc_graph.timesteps(wait, beta);
+                };
+
+                qmc_graph.timesteps_iter_zip_with_self(
+                    timesteps,
+                    beta,
+                    sampling_freq,
+                    bs.iter_mut().chunks(nbonds).into_iter(),
+                    |buf, s| {
+                        buf.zip(0..nbonds).for_each(|(bb, b)| {*bb = s.get_bond_count(b)})
+                    },
+                );
+            });
+        let py_bonds = bonds.into_pyarray(py).to_owned();
+        Ok(py_bonds)
     }
 
     /// Run a quantum monte carlo simulation, get the variable's autocorrelation across time for

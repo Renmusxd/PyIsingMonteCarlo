@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "2.10.2"
+version = "2.10.3"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -21,7 +21,8 @@ serde_cbor = "^0.11"
 numpy = "0.12"
 
 [dependencies.qmc]
-version = "^2.10.2"
+#version = "^2.10.2"
+path = "../IsingMonteCarlo"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
