@@ -18,14 +18,14 @@ itertools = "^0.9"
 rand = {version = "^0.7", features = ["small_rng"]}
 rayon = "1.5"
 serde_cbor = "^0.11"
-numpy = "0.12"
+numpy = "^0.13"
 
 [dependencies.qmc]
 version = "^2.11.0"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
-version = "0.12"
+version = "^0.13"
 features = ["extension-module"]
 
 [dependencies.ndarray]
