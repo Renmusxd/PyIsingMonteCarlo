@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "2.10.3"
+version = "2.13.0"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -14,14 +14,14 @@ codegen-units = 1
 panic = "abort"
 
 [dependencies]
-itertools = "^0.9"
-rand = {version = "^0.7", features = ["small_rng"]}
+itertools = "^0.10"
+rand = {version = "^0.8", features = ["small_rng"]}
 rayon = "1.5"
 serde_cbor = "^0.11"
 numpy = "^0.13"
 
 [dependencies.qmc]
-version = "^2.11.0"
+version = "^2.13"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]

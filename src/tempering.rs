@@ -64,8 +64,7 @@ impl LatticeTempering {
             rng,
             None,
         );
-        qmc.set_run_rvb(rvb)
-            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)?;
+        qmc.set_run_rvb(rvb);
         qmc.set_enable_heatbath(heatbath);
         self.tempering
             .add_qmc_stepper(qmc, beta)

@@ -457,7 +457,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                             let average_energy = qmc_graph.timesteps(timesteps, beta);
@@ -529,7 +529,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                             if let Some(wait) = sampling_wait_buffer {
@@ -599,7 +599,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                             if sampling_wait_buffer > 0 {
@@ -675,7 +675,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                             if sampling_wait_buffer > 0 {
@@ -745,7 +745,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                             if sampling_wait_buffer > 0 {
@@ -820,7 +820,7 @@ impl Lattice {
                                 cutoff,
                                 self.initial_state.clone(),
                             );
-                            qmc_graph.set_run_rvb(self.enable_rvb_updates)?;
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                             if let Some(wait) = sampling_wait_buffer {
@@ -919,7 +919,7 @@ impl Lattice {
                                     self.initial_state.clone(),
                                 );
                                 // TODO catch this error.
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates).unwrap();
+                                qmc_graph.set_run_rvb(self.enable_rvb_updates);
                                 qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
                                 if let Some(wait) = sampling_wait_buffer {
