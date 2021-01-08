@@ -39,7 +39,7 @@ impl LatticeTempering {
         }
     }
 
-    /// Add a graph to be run with field `transverse` at `beta`.
+    /// Add a graph to be run with field `transverse` and `longitudinal` at `beta`.
     fn add_graph(
         &mut self,
         transverse: f64,
