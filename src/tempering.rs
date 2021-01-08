@@ -84,7 +84,7 @@ impl LatticeTempering {
         timesteps: usize,
         replica_swap_freq: Option<usize>,
         sampling_freq: Option<usize>,
-    ) -> PyResult<(Py<PyArray3<bool>>, Py<PyArray1<f64>>)> {
+    ) -> (Py<PyArray3<bool>>, Py<PyArray1<f64>>) {
         let sampling_freq = sampling_freq.unwrap_or(1);
         let replica_swap_freq = replica_swap_freq.unwrap_or(1);
         let mut states = Array3::<bool>::default((
@@ -143,7 +143,7 @@ impl LatticeTempering {
             .collect::<Vec<_>>();
         let energies = Array::from(energies);
         let py_energies = energies.into_pyarray(py).to_owned();
-        Ok((py_states, py_energies))
+        (py_states, py_energies)
     }
 
     /// Run a quantum monte carlo simulation, get the variable's autocorrelation across time for
@@ -162,8 +162,7 @@ impl LatticeTempering {
         sampling_wait_buffer: Option<usize>,
         replica_swap_freq: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
-    ) -> PyResult<Py<PyArray2<f64>>> {
+    ) -> Py<PyArray2<f64>> {
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         if sampling_wait_buffer > 0 {
             self.tempering.parallel_timesteps(sampling_wait_buffer);
@@ -173,7 +172,6 @@ impl LatticeTempering {
             timesteps,
             replica_swap_freq,
             sampling_freq,
-            use_fft,
         );
         let mut corrs = Array::default((self.tempering.num_graphs(), timesteps));
         corrs
@@ -181,8 +179,7 @@ impl LatticeTempering {
             .zip(autos.into_iter())
             .for_each(|(mut s, auto)| s.iter_mut().zip(auto.into_iter()).for_each(|(a, b)| *a = b));
 
-        let py_corrs = corrs.into_pyarray(py).to_owned();
-        Ok(py_corrs)
+        corrs.into_pyarray(py).to_owned()
     }
 
     /// Run a quantum monte carlo simulation, get the bond's autocorrelation across time for each
@@ -201,8 +198,7 @@ impl LatticeTempering {
         sampling_wait_buffer: Option<usize>,
         replica_swap_freq: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
-    ) -> PyResult<Py<PyArray2<f64>>> {
+    ) -> Py<PyArray2<f64>> {
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         if sampling_wait_buffer > 0 {
             self.tempering.parallel_timesteps(sampling_wait_buffer);
@@ -212,7 +208,6 @@ impl LatticeTempering {
             timesteps,
             replica_swap_freq,
             sampling_freq,
-            use_fft,
         );
         let mut corrs = Array::default((self.tempering.num_graphs(), timesteps));
         corrs
@@ -220,8 +215,7 @@ impl LatticeTempering {
             .zip(autos.into_iter())
             .for_each(|(mut s, auto)| s.iter_mut().zip(auto.into_iter()).for_each(|(a, b)| *a = b));
 
-        let py_corrs = corrs.into_pyarray(py).to_owned();
-        Ok(py_corrs)
+        corrs.into_pyarray(py).to_owned()
     }
 
     /// Get the total number of tempering swaps which have occurred.

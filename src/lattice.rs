@@ -573,7 +573,6 @@ impl Lattice {
         num_experiments: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         match self.biases {
             BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
@@ -610,7 +609,6 @@ impl Lattice {
                                 timesteps,
                                 beta,
                                 sampling_freq,
-                                use_fft,
                             );
                             corrs
                                 .iter_mut()
@@ -645,7 +643,6 @@ impl Lattice {
         spin_products: Vec<Vec<usize>>,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         let spin_refs = spin_products
             .iter()
@@ -687,7 +684,6 @@ impl Lattice {
                                 beta,
                                 &spin_refs,
                                 sampling_freq,
-                                use_fft,
                             );
                             corrs
                                 .iter_mut()
@@ -720,7 +716,6 @@ impl Lattice {
         num_experiments: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         match self.biases {
             BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
@@ -756,7 +751,6 @@ impl Lattice {
                                 timesteps,
                                 beta,
                                 sampling_freq,
-                                use_fft,
                             );
                             corrs
                                 .iter_mut()

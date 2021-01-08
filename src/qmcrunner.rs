@@ -119,7 +119,7 @@ impl QMCRunner {
         timesteps: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-    ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray3<bool>>)> {
+    ) -> (Py<PyArray1<f64>>, Py<PyArray3<bool>>) {
         let sampling_wait_buffer = sampling_wait_buffer.map(|wait| min(wait, timesteps));
 
         let mut energies = Array::default((self.qmc.len(),));
@@ -151,7 +151,7 @@ impl QMCRunner {
         let py_energies = energies.into_pyarray(py).to_owned();
         let py_states = states.into_pyarray(py).to_owned();
 
-        Ok((py_energies, py_states))
+        (py_energies, py_states)
     }
 
 
@@ -170,7 +170,7 @@ impl QMCRunner {
         timesteps: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-    ) -> PyResult<Py<PyArray3<usize>>> {
+    ) -> Py<PyArray3<usize>> {
         let sampling_wait_buffer = sampling_wait_buffer.map(|wait| min(wait, timesteps));
 
         let nbonds = self.interactions.len();
@@ -194,8 +194,7 @@ impl QMCRunner {
                     },
                 );
             });
-        let py_bonds = bonds.into_pyarray(py).to_owned();
-        Ok(py_bonds)
+        bonds.into_pyarray(py).to_owned()
     }
 
     /// Run a quantum monte carlo simulation, get the variable's autocorrelation across time for
@@ -213,8 +212,7 @@ impl QMCRunner {
         timesteps: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
-    ) -> PyResult<Py<PyArray2<f64>>> {
+    ) -> Py<PyArray2<f64>> {
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         let mut corrs = Array::default((self.qmc.len(), timesteps));
         self.qmc
@@ -229,15 +227,13 @@ impl QMCRunner {
                     timesteps,
                     beta,
                     sampling_freq,
-                    use_fft,
                 );
                 corrs
                     .iter_mut()
                     .zip(auto.into_iter())
                     .for_each(|(c, v)| *c = v);
             });
-        let py_corrs = corrs.into_pyarray(py).to_owned();
-        Ok(py_corrs)
+        corrs.into_pyarray(py).to_owned()
     }
 
     /// Run a quantum monte carlo simulation, get the variable's autocorrelation across time for
@@ -257,8 +253,7 @@ impl QMCRunner {
         spin_products: Vec<Vec<usize>>,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
-    ) -> PyResult<Py<PyArray2<f64>>> {
+    ) -> Py<PyArray2<f64>> {
         let spin_refs = spin_products
             .iter()
             .map(|p| p.as_slice())
@@ -278,15 +273,13 @@ impl QMCRunner {
                     beta,
                     &spin_refs,
                     sampling_freq,
-                    use_fft,
                 );
                 corrs
                     .iter_mut()
                     .zip(auto.into_iter())
                     .for_each(|(c, v)| *c = v);
             });
-        let py_corrs = corrs.into_pyarray(py).to_owned();
-        Ok(py_corrs)
+        corrs.into_pyarray(py).to_owned()
     }
 
     /// Run a quantum monte carlo simulation, get the bond's autocorrelation across time for each
@@ -304,8 +297,7 @@ impl QMCRunner {
         timesteps: usize,
         sampling_wait_buffer: Option<usize>,
         sampling_freq: Option<usize>,
-        use_fft: Option<bool>,
-    ) -> PyResult<Py<PyArray2<f64>>> {
+    ) -> Py<PyArray2<f64>> {
         let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
         let mut corrs = Array::default((self.qmc.len(), timesteps));
         self.qmc
@@ -320,15 +312,13 @@ impl QMCRunner {
                     timesteps,
                     beta,
                     sampling_freq,
-                    use_fft,
                 );
                 corrs
                     .iter_mut()
                     .zip(auto.into_iter())
                     .for_each(|(c, v)| *c = v);
             });
-        let py_corrs = corrs.into_pyarray(py).to_owned();
-        Ok(py_corrs)
+        corrs.into_pyarray(py).to_owned()
     }
 
     /// Get the energy offset calculated from the set of interactions.
