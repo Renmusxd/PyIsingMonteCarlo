@@ -56,7 +56,7 @@ impl LatticeTempering {
         let rng = SmallRng::from_entropy();
         let rvb = enable_rvb_update.unwrap_or(false);
         let heatbath = enable_heatbath_update.unwrap_or(false);
-        let mut qmc = DefaultQMCIsingGraph::<SmallRng>::new_with_rng(
+        let mut qmc = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
             edges,
             transverse,
             longitudinal,
@@ -76,7 +76,7 @@ impl LatticeTempering {
         self.tempering.parallel_timesteps(t)
     }
 
-    /// Run QMC timesteps and sample every `sampling_freq` steps, take a parallel tempering step
+    /// Run Qmc timesteps and sample every `sampling_freq` steps, take a parallel tempering step
     /// every `replica_swap_freq` steps if nonzero.
     fn qmc_timesteps_sample(
         &mut self,

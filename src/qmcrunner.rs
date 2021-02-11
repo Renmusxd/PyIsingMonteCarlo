@@ -11,16 +11,16 @@ use std::cmp::min;
 
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
-pub struct QMCRunner {
+pub struct QmcRunner {
     nvars: usize,
     do_loop_updates: bool,
     do_heatbath: bool,
     interactions: Vec<(Vec<f64>, Vec<usize>)>,
-    qmc: Vec<DefaultQMC<SmallRng>>,
+    qmc: Vec<DefaultQmc<SmallRng>>,
 }
 
 #[pymethods]
-impl QMCRunner {
+impl QmcRunner {
     /// Construct a new instance with `num_experiments` qmc instances.
     #[new]
     fn new(nvars: usize, num_experiments: usize) -> Self {
@@ -30,17 +30,18 @@ impl QMCRunner {
             do_heatbath: false,
             interactions: Vec::default(),
             qmc: (0..num_experiments)
-                .map(|_| DefaultQMC::new(nvars, SmallRng::from_entropy(), false))
+                .map(|_| DefaultQmc::new(nvars, SmallRng::from_entropy(), false))
                 .collect(),
         }
     }
 
     /// Add a new experiment.
     fn add_qmc(&mut self) {
-        let mut qmc = DefaultQMC::new(self.nvars, SmallRng::from_entropy(), self.do_loop_updates);
+        let mut qmc = DefaultQmc::new(self.nvars, SmallRng::from_entropy(), self.do_loop_updates);
         self.interactions
             .iter()
             .for_each(|(mat, vars)| qmc.make_interaction(mat.clone(), vars.clone()).unwrap());
+        qmc.set_do_heatbath(self.do_heatbath);
         self.qmc.push(qmc);
     }
 

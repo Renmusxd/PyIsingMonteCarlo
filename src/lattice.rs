@@ -4,7 +4,7 @@ use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::*;
 use qmc::sse::qmc_ising::*;
-use qmc::sse::QMCDebug;
+use qmc::sse::QmcDebug;
 use rayon::prelude::*;
 use std::cmp::{max, min};
 
@@ -869,7 +869,7 @@ impl Lattice {
                     Ok(qmc_graph.get_offset())
                 } else {
                     Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
-                        "Cannot construct QMC without transverse field".to_string(),
+                        "Cannot construct Qmc without transverse field".to_string(),
                     ))
                 }
             }

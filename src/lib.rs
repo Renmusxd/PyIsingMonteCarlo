@@ -11,6 +11,6 @@ use pyo3::prelude::*;
 fn py_monte_carlo(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Lattice>()?;
     m.add_class::<LatticeTempering>()?;
-    m.add_class::<QMCRunner>()?;
+    m.add_class::<QmcRunner>()?;
     Ok(())
 }
