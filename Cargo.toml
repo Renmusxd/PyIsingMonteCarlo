@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "2.14.0"
+version = "2.15.0"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
