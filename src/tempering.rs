@@ -1,4 +1,4 @@
-use ndarray::{Array, Array3};
+use ndarray::{Array, Array3, Array2};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::Edge;
@@ -69,6 +69,34 @@ impl LatticeTempering {
         self.tempering
             .add_qmc_stepper(qmc, beta)
             .map_err(PyErr::new::<pyo3::exceptions::PyValueError, String>)
+    }
+
+    fn get_num_graphs(&self) -> usize {
+        self.tempering.num_graphs()
+    }
+
+    fn get_graph_itime(&self, py: Python, g: usize) -> PyResult<Py<PyArray2<bool>>> {
+        let graph = self.tempering.graph_ref().get(g);
+        if let Some((g, _)) = graph {
+            let mut states = Array2::<bool>::default((
+                g.get_cutoff(),
+                self.nvars,
+            ));
+            let axis_iter = states.axis_iter_mut(ndarray::Axis(0));
+
+            g.imaginary_time_fold(|mut it, s| {
+                let mut row = it.next().unwrap();
+                row.iter_mut().zip(s.iter().cloned()).for_each(|(b, sb)| {
+                    *b = sb;
+                });
+                it
+            }, axis_iter);
+
+            let py_states = states.into_pyarray(py).to_owned();
+            Ok(py_states)
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(format!("Attempted to get graph {} of {}", g, self.tempering.num_graphs())))
+        }
     }
 
     /// Run `t` qmc timesteps on each graph.
