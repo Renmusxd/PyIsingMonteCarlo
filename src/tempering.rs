@@ -16,12 +16,13 @@ pub struct LatticeTempering {
     edges: Vec<(Edge, f64)>,
     cutoff: usize,
     tempering: DefaultTemperingContainer<SmallRng, SmallRng>,
+    seed: Option<u64>
 }
 
 #[pymethods]
 impl LatticeTempering {
     #[new]
-    fn new(edges: Vec<(Edge, f64)>) -> Self {
+    fn new(edges: Vec<(Edge, f64)>, seed: Option<u64>) -> Self {
         let nvars = edges
             .iter()
             .map(|((a, b), _)| max(*a, *b))
@@ -29,13 +30,18 @@ impl LatticeTempering {
             .map(|x| x + 1)
             .unwrap();
         let cutoff = nvars;
-        let rng = SmallRng::from_entropy();
+        let rng = if let Some(seed) = seed {
+            SmallRng::seed_from_u64(seed)
+        } else {
+            SmallRng::from_entropy()
+        };
         let tempering = DefaultTemperingContainer::<SmallRng, SmallRng>::new(rng);
         Self {
             nvars,
             edges,
             cutoff,
             tempering,
+            seed,
         }
     }
 
@@ -48,12 +54,14 @@ impl LatticeTempering {
         edges: Option<Vec<(Edge, f64)>>,
         enable_rvb_update: Option<bool>,
         enable_heatbath_update: Option<bool>,
+        seed: Option<u64>
     ) -> PyResult<()> {
         let edges = match (edges, &self.edges) {
             (Some(edges), _) => edges,
             (None, edges) => edges.clone(),
         };
-        let rng = SmallRng::from_entropy();
+        let seed = seed.unwrap_or_else(|| self.tempering.rng_mut().gen());
+        let rng = SmallRng::seed_from_u64(seed);
         let rvb = enable_rvb_update.unwrap_or(false);
         let heatbath = enable_heatbath_update.unwrap_or(false);
         let mut qmc = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
@@ -255,7 +263,7 @@ impl LatticeTempering {
     fn save_to_file(&self, path: &str) -> PyResult<()> {
         let f = File::create(path)?;
         let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
-        let to_write = (self.nvars, self.edges.clone(), self.cutoff, tempering);
+        let to_write = (self.nvars, self.edges.clone(), self.cutoff, self.seed, tempering);
         serde_cbor::to_writer(f, &to_write)
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))
     }
@@ -264,10 +272,11 @@ impl LatticeTempering {
     #[staticmethod]
     fn read_from_file(path: &str) -> PyResult<Self> {
         let f = File::open(path)?;
-        let (nvars, edges, cutoff, tempering): (
+        let (nvars, edges, cutoff, seed, tempering): (
             usize,
             Vec<(Edge, f64)>,
             usize,
+            Option<u64>,
             DefaultSerializeTemperingContainer,
         ) = serde_cbor::from_reader(f)
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))?;
@@ -278,6 +287,7 @@ impl LatticeTempering {
             edges,
             cutoff,
             tempering: tempering.into_tempering_container(container_rng, graph_rngs),
+            seed,
         })
     }
 }

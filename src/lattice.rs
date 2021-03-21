@@ -7,6 +7,8 @@ use qmc::sse::qmc_ising::*;
 use qmc::sse::QmcDebug;
 use rayon::prelude::*;
 use std::cmp::{max, min};
+use rand::rngs::SmallRng;
+use rand::{SeedableRng, Rng};
 
 pub enum BiasType {
     INDIVIDUAL(Vec<f64>),
@@ -25,6 +27,7 @@ pub struct Lattice {
     initial_state: Option<Vec<bool>>,
     enable_rvb_updates: bool,
     enable_heatbath: bool,
+    seed_gen: Option<u64>,
 }
 
 #[pymethods]
@@ -32,7 +35,7 @@ impl Lattice {
     /// Make a new lattice with `edges`, positive implies antiferromagnetic bonds, negative is
     /// ferromagnetic.
     #[new]
-    fn new_lattice(edges: Vec<((usize, usize), f64)>) -> PyResult<Self> {
+    fn new_lattice(edges: Vec<((usize, usize), f64)>, seed_gen: Option<u64>) -> PyResult<Self> {
         let nvars = edges
             .iter()
             .map(|((a, b), _)| max(*a, *b))
@@ -47,12 +50,30 @@ impl Lattice {
                 initial_state: None,
                 enable_rvb_updates: false,
                 enable_heatbath: false,
+                seed_gen
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Must supply some edges for graph".to_string(),
             ))
         }
+    }
+
+    /// Set the seed to be used to generate all the seeds for runs, if set then reruns will reuse
+    /// the same seeds. If unset then new seeds will be made each time.
+    fn set_seed_gen(&mut self, seed_gen: Option<u64>) {
+        self.seed_gen = seed_gen;
+    }
+
+    /// Make the seeds for each graph.
+    fn make_seeds(&self, num_experiments: usize) -> Vec<u64> {
+        // Make seeds
+        let mut rng = if let Some(seed) = self.seed_gen {
+            SmallRng::seed_from_u64(seed)
+        } else {
+            SmallRng::from_entropy()
+        };
+        (0 .. num_experiments).map(|_| rng.gen()).collect()
     }
 
     /// Turn on or off semiclassical updates.
@@ -153,12 +174,16 @@ impl Lattice {
                 BiasType::GLOBAL(b) => vec![*b; self.nvars],
                 BiasType::INDIVIDUAL(bs) => bs.clone(),
             };
+
+            let seeds = self.make_seeds(num_experiments);
             states
                 .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                .for_each(|(mut s, mut e)| {
-                    let mut gs = GraphState::new(&self.edges, &biases);
+                .zip(seeds.into_par_iter())
+                .for_each(|((mut s, mut e), seed)| {
+                    let rng = SmallRng::seed_from_u64(seed);
+                    let mut gs = GraphState::new(&self.edges, &biases, rng);
                     gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
@@ -213,12 +238,17 @@ impl Lattice {
                 BiasType::GLOBAL(b) => vec![*b; self.nvars],
                 BiasType::INDIVIDUAL(bs) => bs.clone(),
             };
+
+            let seeds = self.make_seeds(num_experiments);
+
             states
                 .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                .for_each(|(mut s, mut e)| {
-                    let mut gs = GraphState::new(&self.edges, &biases);
+                .zip(seeds.into_par_iter())
+                .for_each(|((mut s, mut e), seed)| {
+                    let rng = SmallRng::seed_from_u64(seed);
+                    let mut gs = GraphState::new(&self.edges, &biases, rng);
                     gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
@@ -296,12 +326,15 @@ impl Lattice {
                 BiasType::INDIVIDUAL(bs) => bs.clone(),
             };
 
+            let seeds = self.make_seeds(num_experiments);
             states
                 .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                .for_each(|(mut s, mut e)| {
-                    let mut gs = GraphState::new(&self.edges, &biases);
+                .zip(seeds.into_par_iter())
+                .for_each(|((mut s, mut e), seed)| {
+                    let rng = SmallRng::seed_from_u64(seed);
+                    let mut gs = GraphState::new(&self.edges, &biases, rng);
                     gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
@@ -380,12 +413,15 @@ impl Lattice {
                 BiasType::INDIVIDUAL(bs) => bs.clone(),
             };
 
+            let seeds = self.make_seeds(num_experiments);
             states
                 .axis_iter_mut(ndarray::Axis(0))
                 .into_par_iter()
                 .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                .for_each(|(mut s, mut e)| {
-                    let mut gs = GraphState::new(&self.edges, &biases);
+                .zip(seeds.into_par_iter())
+                .for_each(|((mut s, mut e), seed)| {
+                    let rng = SmallRng::seed_from_u64(seed);
+                    let mut gs = GraphState::new(&self.edges, &biases, rng);
                     gs.enable_edge_importance_sampling(edge_move_importance_sampling);
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
@@ -444,19 +480,21 @@ impl Lattice {
 
                     let mut energies = Array::default((num_experiments,));
                     let mut states = Array2::<bool>::default((num_experiments, self.nvars));
-
+                    let seeds = self.make_seeds(num_experiments);
                     states
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .try_for_each(|(mut s, mut e)| -> Result<(), String> {
-                            let mut qmc_graph = new_qmc(
+                        .zip(seeds.into_par_iter())
+                        .try_for_each(|((mut s, mut e), seed)| -> Result<(), String> {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                 self.edges.clone(),
                                 transverse,
                                 bias,
                                 cutoff,
-                                self.initial_state.clone(),
-                            );
+                                rng,
+                                self.initial_state.clone());
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -516,19 +554,22 @@ impl Lattice {
                         timesteps / sampling_freq.unwrap_or(1),
                         self.nvars,
                     ));
+                    let seeds = self.make_seeds(num_experiments);
 
                     states
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .try_for_each(|(mut s, mut e)| -> Result<(), String> {
-                            let mut qmc_graph = new_qmc(
+                        .zip(seeds.into_par_iter())
+                        .try_for_each(|((mut s, mut e), seed)| -> Result<(), String> {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                 self.edges.clone(),
                                 transverse,
                                 bias,
                                 cutoff,
-                                self.initial_state.clone(),
-                            );
+                                rng,
+                                self.initial_state.clone());
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -587,17 +628,20 @@ impl Lattice {
                     let cutoff = self.nvars;
 
                     let mut corrs = Array::default((num_experiments, timesteps));
+                    let seeds = self.make_seeds(num_experiments);
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .try_for_each(|mut corrs| -> Result<(), String> {
-                            let mut qmc_graph = new_qmc(
+                        .zip(seeds.into_par_iter())
+                        .try_for_each(|(mut corrs, seed)| -> Result<(), String> {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                 self.edges.clone(),
                                 transverse,
                                 bias,
                                 cutoff,
-                                self.initial_state.clone(),
-                            );
+                                rng,
+                                self.initial_state.clone());
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -661,17 +705,20 @@ impl Lattice {
                     let cutoff = self.nvars;
 
                     let mut corrs = Array::default((num_experiments, timesteps));
+                    let seeds = self.make_seeds(num_experiments);
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .try_for_each(|mut corrs| -> Result<(), String> {
-                            let mut qmc_graph = new_qmc(
+                        .zip(seeds.into_par_iter())
+                        .try_for_each(|(mut corrs, seed)| -> Result<(), String> {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                 self.edges.clone(),
                                 transverse,
                                 bias,
                                 cutoff,
-                                self.initial_state.clone(),
-                            );
+                                rng,
+                                self.initial_state.clone());
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -729,17 +776,20 @@ impl Lattice {
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
                     let mut corrs = Array::default((num_experiments, timesteps));
+                    let seeds = self.make_seeds(num_experiments);
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
-                        .try_for_each(|mut corrs| -> Result<(), String> {
-                            let mut qmc_graph = new_qmc(
+                        .zip(seeds.into_par_iter())
+                        .try_for_each(|(mut corrs, seed)| -> Result<(), String> {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                 self.edges.clone(),
                                 transverse,
                                 bias,
                                 cutoff,
-                                self.initial_state.clone(),
-                            );
+                                rng,
+                                self.initial_state.clone());
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -801,19 +851,21 @@ impl Lattice {
                     let exponent = exponent.unwrap_or(1);
                     let mut energies = Array::default((num_experiments,));
                     let mut measures = Array::default((num_experiments,));
-
+                    let seeds = self.make_seeds(num_experiments);
                     measures
                         .axis_iter_mut(ndarray::Axis(0))
                         .into_par_iter()
                         .zip(energies.axis_iter_mut(ndarray::Axis(0)).into_par_iter())
-                        .try_for_each(|(mut m, mut e)| -> Result<(), String> {
-                            let mut qmc_graph = new_qmc(
+                        .zip(seeds.into_par_iter())
+                        .try_for_each(|((mut m, mut e), seed)| -> Result<(), String> {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                 self.edges.clone(),
                                 transverse,
                                 bias,
                                 cutoff,
-                                self.initial_state.clone(),
-                            );
+                                rng,
+                                self.initial_state.clone());
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -902,16 +954,19 @@ impl Lattice {
                     Some(transverse) => {
                         let cutoff = self.nvars;
                         let sampling_freq = sampling_freq.unwrap_or(1);
+                        let seeds = self.make_seeds(num_experiments);
                         let (tot_diag, tot_offd, tot_consts, tot_n) = (0..num_experiments)
                             .into_par_iter()
-                            .map(|_| {
-                                let mut qmc_graph = new_qmc(
+                            .zip(seeds.into_par_iter())
+                            .map(|(_, seed)| {
+                                let rng = SmallRng::seed_from_u64(seed);
+                                let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
                                     self.edges.clone(),
                                     transverse,
                                     bias,
                                     cutoff,
-                                    self.initial_state.clone(),
-                                );
+                                    rng,
+                                    self.initial_state.clone());
                                 // TODO catch this error.
                                 qmc_graph.set_run_rvb(self.enable_rvb_updates);
                                 qmc_graph.set_enable_heatbath(self.enable_heatbath);

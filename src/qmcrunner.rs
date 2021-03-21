@@ -1,11 +1,11 @@
 use itertools::Itertools;
-use ndarray::{Array, Array3};
+use ndarray::{Array, Array3, Array2};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use pyo3::PyErr;
 use qmc::sse::*;
 use rand::prelude::SmallRng;
-use rand::SeedableRng;
+use rand::{SeedableRng, Rng};
 use rayon::prelude::*;
 use std::cmp::min;
 
@@ -17,27 +17,36 @@ pub struct QmcRunner {
     do_heatbath: bool,
     interactions: Vec<(Vec<f64>, Vec<usize>)>,
     qmc: Vec<DefaultQmc<SmallRng>>,
+    rng: SmallRng
 }
 
 #[pymethods]
 impl QmcRunner {
     /// Construct a new instance with `num_experiments` qmc instances.
     #[new]
-    fn new(nvars: usize, num_experiments: usize) -> Self {
+    fn new(nvars: usize, num_experiments: usize, seed: Option<u64>) -> Self {
+        let mut rng = if let Some(seed) = seed {
+            SmallRng::seed_from_u64(seed)
+        } else {
+            SmallRng::from_entropy()
+        };
+        let seeds = (0 .. num_experiments).map(|_| rng.gen());
         Self {
             nvars,
             do_loop_updates: false,
             do_heatbath: false,
             interactions: Vec::default(),
-            qmc: (0..num_experiments)
-                .map(|_| DefaultQmc::new(nvars, SmallRng::from_entropy(), false))
+            qmc: seeds
+                .map(|seed| DefaultQmc::new(nvars, SmallRng::seed_from_u64(seed), false))
                 .collect(),
+            rng,
         }
     }
 
     /// Add a new experiment.
     fn add_qmc(&mut self) {
-        let mut qmc = DefaultQmc::new(self.nvars, SmallRng::from_entropy(), self.do_loop_updates);
+        let seed = self.rng.gen();
+        let mut qmc = DefaultQmc::new(self.nvars, SmallRng::seed_from_u64(seed), self.do_loop_updates);
         self.interactions
             .iter()
             .for_each(|(mat, vars)| qmc.make_interaction(mat.clone(), vars.clone()).unwrap());
@@ -328,6 +337,31 @@ impl QmcRunner {
             self.qmc[0].get_offset()
         } else {
             0.0
+        }
+    }
+
+    /// Get the imaginary time states for the selected graph.
+    fn get_graph_itime(&self, py: Python, g: usize) -> PyResult<Py<PyArray2<bool>>> {
+        let graph = self.qmc.get(g);
+        if let Some(g) = graph {
+            let mut states = Array2::<bool>::default((
+                g.get_cutoff(),
+                self.nvars,
+            ));
+            let axis_iter = states.axis_iter_mut(ndarray::Axis(0));
+
+            g.imaginary_time_fold(|mut it, s| {
+                let mut row = it.next().unwrap();
+                row.iter_mut().zip(s.iter().cloned()).for_each(|(b, sb)| {
+                    *b = sb;
+                });
+                it
+            }, axis_iter);
+
+            let py_states = states.into_pyarray(py).to_owned();
+            Ok(py_states)
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(format!("Attempted to get graph {} of {}", g, self.qmc.len())))
         }
     }
 }
