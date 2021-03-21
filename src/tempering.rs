@@ -1,4 +1,4 @@
-use ndarray::{Array, Array3, Array2};
+use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::Edge;
@@ -16,7 +16,7 @@ pub struct LatticeTempering {
     edges: Vec<(Edge, f64)>,
     cutoff: usize,
     tempering: DefaultTemperingContainer<SmallRng, SmallRng>,
-    seed: Option<u64>
+    seed: Option<u64>,
 }
 
 #[pymethods]
@@ -54,7 +54,7 @@ impl LatticeTempering {
         edges: Option<Vec<(Edge, f64)>>,
         enable_rvb_update: Option<bool>,
         enable_heatbath_update: Option<bool>,
-        seed: Option<u64>
+        seed: Option<u64>,
     ) -> PyResult<()> {
         let edges = match (edges, &self.edges) {
             (Some(edges), _) => edges,
@@ -86,24 +86,30 @@ impl LatticeTempering {
     fn get_graph_itime(&self, py: Python, g: usize) -> PyResult<Py<PyArray2<bool>>> {
         let graph = self.tempering.graph_ref().get(g);
         if let Some((g, _)) = graph {
-            let mut states = Array2::<bool>::default((
-                g.get_cutoff(),
-                self.nvars,
-            ));
+            let mut states = Array2::<bool>::default((g.get_cutoff(), self.nvars));
             let axis_iter = states.axis_iter_mut(ndarray::Axis(0));
 
-            g.imaginary_time_fold(|mut it, s| {
-                let mut row = it.next().unwrap();
-                row.iter_mut().zip(s.iter().cloned()).for_each(|(b, sb)| {
-                    *b = sb;
-                });
-                it
-            }, axis_iter);
+            g.imaginary_time_fold(
+                |mut it, s| {
+                    let mut row = it.next().unwrap();
+                    row.iter_mut().zip(s.iter().cloned()).for_each(|(b, sb)| {
+                        *b = sb;
+                    });
+                    it
+                },
+                axis_iter,
+            );
 
             let py_states = states.into_pyarray(py).to_owned();
             Ok(py_states)
         } else {
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(format!("Attempted to get graph {} of {}", g, self.tempering.num_graphs())))
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                format!(
+                    "Attempted to get graph {} of {}",
+                    g,
+                    self.tempering.num_graphs()
+                ),
+            ))
         }
     }
 
@@ -259,18 +265,25 @@ impl LatticeTempering {
         self.tempering.get_total_swaps()
     }
 
-    /// Save graphs to a filepath.
+    /// Save graphs to a filepath. Does not save state of RNG.
     fn save_to_file(&self, path: &str) -> PyResult<()> {
         let f = File::create(path)?;
         let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
-        let to_write = (self.nvars, self.edges.clone(), self.cutoff, self.seed, tempering);
+        let to_write = (
+            self.nvars,
+            self.edges.clone(),
+            self.cutoff,
+            self.seed,
+            tempering,
+        );
         serde_cbor::to_writer(f, &to_write)
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))
     }
 
-    /// Load graphs from a filepath
+    /// Load graphs from a filepath. Does not load state of RNG. In order to create repeatable
+    /// calculations reseed with a new value. If no reseed is provided rng is seeded from entropy.
     #[staticmethod]
-    fn read_from_file(path: &str) -> PyResult<Self> {
+    fn read_from_file(path: &str, reseed: Option<u64>) -> PyResult<Self> {
         let f = File::open(path)?;
         let (nvars, edges, cutoff, seed, tempering): (
             usize,
@@ -280,13 +293,18 @@ impl LatticeTempering {
             DefaultSerializeTemperingContainer,
         ) = serde_cbor::from_reader(f)
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))?;
-        let container_rng = SmallRng::from_entropy();
-        let graph_rngs = std::iter::repeat(()).map(|_| SmallRng::from_entropy());
+        // Do _NOT_ seed rng from saved value since that would repeat previous numbers,
+        // not resume where it left off.
+        let container_rng = if let Some(seed) = reseed {
+            SmallRng::seed_from_u64(seed)
+        } else {
+            SmallRng::from_entropy()
+        };
         Ok(Self {
             nvars,
             edges,
             cutoff,
-            tempering: tempering.into_tempering_container(container_rng, graph_rngs),
+            tempering: tempering.into_tempering_container_gen_rngs(container_rng),
             seed,
         })
     }

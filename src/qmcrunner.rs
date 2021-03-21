@@ -1,11 +1,11 @@
 use itertools::Itertools;
-use ndarray::{Array, Array3, Array2};
+use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use pyo3::PyErr;
 use qmc::sse::*;
 use rand::prelude::SmallRng;
-use rand::{SeedableRng, Rng};
+use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::cmp::min;
 
@@ -17,7 +17,7 @@ pub struct QmcRunner {
     do_heatbath: bool,
     interactions: Vec<(Vec<f64>, Vec<usize>)>,
     qmc: Vec<DefaultQmc<SmallRng>>,
-    rng: SmallRng
+    rng: SmallRng,
 }
 
 #[pymethods]
@@ -30,7 +30,7 @@ impl QmcRunner {
         } else {
             SmallRng::from_entropy()
         };
-        let seeds = (0 .. num_experiments).map(|_| rng.gen());
+        let seeds = (0..num_experiments).map(|_| rng.gen());
         Self {
             nvars,
             do_loop_updates: false,
@@ -46,7 +46,11 @@ impl QmcRunner {
     /// Add a new experiment.
     fn add_qmc(&mut self) {
         let seed = self.rng.gen();
-        let mut qmc = DefaultQmc::new(self.nvars, SmallRng::seed_from_u64(seed), self.do_loop_updates);
+        let mut qmc = DefaultQmc::new(
+            self.nvars,
+            SmallRng::seed_from_u64(seed),
+            self.do_loop_updates,
+        );
         self.interactions
             .iter()
             .for_each(|(mat, vars)| qmc.make_interaction(mat.clone(), vars.clone()).unwrap());
@@ -164,7 +168,6 @@ impl QmcRunner {
         (py_energies, py_states)
     }
 
-
     /// Run a quantum monte carlo simulation, sample the bonds at each `sampling_freq`, returns the
     /// average number of each.
     ///
@@ -184,7 +187,11 @@ impl QmcRunner {
         let sampling_wait_buffer = sampling_wait_buffer.map(|wait| min(wait, timesteps));
 
         let nbonds = self.interactions.len();
-        let mut bonds = Array::default((self.qmc.len(),timesteps / sampling_freq.unwrap_or(1), nbonds));
+        let mut bonds = Array::default((
+            self.qmc.len(),
+            timesteps / sampling_freq.unwrap_or(1),
+            nbonds,
+        ));
 
         self.qmc
             .par_iter_mut()
@@ -200,7 +207,8 @@ impl QmcRunner {
                     sampling_freq,
                     bs.iter_mut().chunks(nbonds).into_iter(),
                     |buf, s| {
-                        buf.zip(0..nbonds).for_each(|(bb, b)| {*bb = s.get_bond_count(b)})
+                        buf.zip(0..nbonds)
+                            .for_each(|(bb, b)| *bb = s.get_bond_count(b))
                     },
                 );
             });
@@ -233,11 +241,8 @@ impl QmcRunner {
                     qmc_graph.timesteps(sampling_wait_buffer, beta);
                 }
 
-                let auto = qmc_graph.calculate_variable_autocorrelation(
-                    timesteps,
-                    beta,
-                    sampling_freq,
-                );
+                let auto =
+                    qmc_graph.calculate_variable_autocorrelation(timesteps, beta, sampling_freq);
                 corrs
                     .iter_mut()
                     .zip(auto.into_iter())
@@ -318,11 +323,7 @@ impl QmcRunner {
                     qmc_graph.timesteps(sampling_wait_buffer, beta);
                 }
 
-                let auto = qmc_graph.calculate_bond_autocorrelation(
-                    timesteps,
-                    beta,
-                    sampling_freq,
-                );
+                let auto = qmc_graph.calculate_bond_autocorrelation(timesteps, beta, sampling_freq);
                 corrs
                     .iter_mut()
                     .zip(auto.into_iter())
@@ -344,24 +345,26 @@ impl QmcRunner {
     fn get_graph_itime(&self, py: Python, g: usize) -> PyResult<Py<PyArray2<bool>>> {
         let graph = self.qmc.get(g);
         if let Some(g) = graph {
-            let mut states = Array2::<bool>::default((
-                g.get_cutoff(),
-                self.nvars,
-            ));
+            let mut states = Array2::<bool>::default((g.get_cutoff(), self.nvars));
             let axis_iter = states.axis_iter_mut(ndarray::Axis(0));
 
-            g.imaginary_time_fold(|mut it, s| {
-                let mut row = it.next().unwrap();
-                row.iter_mut().zip(s.iter().cloned()).for_each(|(b, sb)| {
-                    *b = sb;
-                });
-                it
-            }, axis_iter);
+            g.imaginary_time_fold(
+                |mut it, s| {
+                    let mut row = it.next().unwrap();
+                    row.iter_mut().zip(s.iter().cloned()).for_each(|(b, sb)| {
+                        *b = sb;
+                    });
+                    it
+                },
+                axis_iter,
+            );
 
             let py_states = states.into_pyarray(py).to_owned();
             Ok(py_states)
         } else {
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(format!("Attempted to get graph {} of {}", g, self.qmc.len())))
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                format!("Attempted to get graph {} of {}", g, self.qmc.len()),
+            ))
         }
     }
 }

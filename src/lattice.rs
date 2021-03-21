@@ -5,10 +5,10 @@ use pyo3::prelude::*;
 use qmc::classical::graph::*;
 use qmc::sse::qmc_ising::*;
 use qmc::sse::QmcDebug;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::cmp::{max, min};
-use rand::rngs::SmallRng;
-use rand::{SeedableRng, Rng};
 
 pub enum BiasType {
     INDIVIDUAL(Vec<f64>),
@@ -50,7 +50,7 @@ impl Lattice {
                 initial_state: None,
                 enable_rvb_updates: false,
                 enable_heatbath: false,
-                seed_gen
+                seed_gen,
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
@@ -73,7 +73,7 @@ impl Lattice {
         } else {
             SmallRng::from_entropy()
         };
-        (0 .. num_experiments).map(|_| rng.gen()).collect()
+        (0..num_experiments).map(|_| rng.gen()).collect()
     }
 
     /// Turn on or off semiclassical updates.
@@ -221,7 +221,7 @@ impl Lattice {
         only_basic_moves: Option<bool>,
         thermalization_time: Option<usize>,
         sampling_freq: Option<usize>,
-        edge_move_importance_sampling: Option<bool>
+        edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray3<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
@@ -259,7 +259,7 @@ impl Lattice {
                     s.axis_iter_mut(ndarray::Axis(0)).zip(e.iter_mut()).fold(
                         gs,
                         |mut gs, (mut s, e)| {
-                            for _ in 0 .. sampling_freq {
+                            for _ in 0..sampling_freq {
                                 gs.do_time_step(beta, only_basic_moves).unwrap();
                             }
                             s.iter_mut()
@@ -384,7 +384,7 @@ impl Lattice {
         timesteps: usize,
         num_experiments: usize,
         only_basic_moves: Option<bool>,
-        edge_move_importance_sampling: Option<bool>
+        edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
             let only_basic_moves = only_basic_moves.unwrap_or(false);
@@ -494,7 +494,8 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone());
+                                self.initial_state.clone(),
+                            );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -569,7 +570,8 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone());
+                                self.initial_state.clone(),
+                            );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -641,7 +643,8 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone());
+                                self.initial_state.clone(),
+                            );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -718,7 +721,8 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone());
+                                self.initial_state.clone(),
+                            );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -789,7 +793,8 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone());
+                                self.initial_state.clone(),
+                            );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -865,7 +870,8 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone());
+                                self.initial_state.clone(),
+                            );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
@@ -966,7 +972,8 @@ impl Lattice {
                                     bias,
                                     cutoff,
                                     rng,
-                                    self.initial_state.clone());
+                                    self.initial_state.clone(),
+                                );
                                 // TODO catch this error.
                                 qmc_graph.set_run_rvb(self.enable_rvb_updates);
                                 qmc_graph.set_enable_heatbath(self.enable_heatbath);
