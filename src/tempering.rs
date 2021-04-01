@@ -2,6 +2,8 @@ use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::Edge;
+use qmc::sse::fast_op_alloc::{DefaultFastOpAllocator, SwitchableFastOpAllocator};
+use qmc::sse::fast_ops::{FastOp, FastOpsTemplate};
 use qmc::sse::parallel_tempering::*;
 use qmc::sse::*;
 use rand::prelude::*;
@@ -11,20 +13,25 @@ use serde_cbor::ser::IoWrite;
 use std::cmp::{max, min};
 use std::fs::File;
 
+type SwitchFastOp = FastOpsTemplate<FastOp, SwitchableFastOpAllocator<DefaultFastOpAllocator>>;
+type SwitchQmc = QmcIsingGraph<SmallRng, SwitchFastOp>;
+type TempCont = TemperingContainer<SmallRng, SwitchQmc>;
+
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
 pub struct LatticeTempering {
     nvars: usize,
     edges: Vec<(Edge, f64)>,
     cutoff: usize,
-    tempering: DefaultTemperingContainer<SmallRng, SmallRng>,
+    tempering: TempCont,
     seed: Option<u64>,
+    use_allocator: bool,
 }
 
 #[pymethods]
 impl LatticeTempering {
     #[new]
-    fn new(edges: Vec<(Edge, f64)>, seed: Option<u64>) -> Self {
+    fn new(edges: Vec<(Edge, f64)>, seed: Option<u64>, use_allocator: Option<bool>) -> Self {
         let nvars = edges
             .iter()
             .map(|((a, b), _)| max(*a, *b))
@@ -37,13 +44,15 @@ impl LatticeTempering {
         } else {
             SmallRng::from_entropy()
         };
-        let tempering = DefaultTemperingContainer::<SmallRng, SmallRng>::new(rng);
+        let use_allocator = use_allocator.unwrap_or(true);
+        let tempering = TempCont::new(rng);
         Self {
             nvars,
             edges,
             cutoff,
             tempering,
             seed,
+            use_allocator,
         }
     }
 
@@ -57,22 +66,34 @@ impl LatticeTempering {
         enable_rvb_update: Option<bool>,
         enable_heatbath_update: Option<bool>,
         seed: Option<u64>,
+        use_allocator: Option<bool>,
     ) -> PyResult<()> {
         let edges = match (edges, &self.edges) {
             (Some(edges), _) => edges,
             (None, edges) => edges.clone(),
         };
         let seed = seed.unwrap_or_else(|| self.tempering.rng_mut().gen());
+        let use_allocator = use_allocator.unwrap_or(self.use_allocator);
         let rng = SmallRng::seed_from_u64(seed);
         let rvb = enable_rvb_update.unwrap_or(false);
         let heatbath = enable_heatbath_update.unwrap_or(false);
-        let mut qmc = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
+        // Add a hook to insert own allocator.
+        let mut qmc = SwitchQmc::new_with_rng_with_manager_hook(
             edges,
             transverse,
             longitudinal,
             self.cutoff,
             rng,
             None,
+            |nvars, nbonds| {
+                let alloc = if use_allocator {
+                    Some(DefaultFastOpAllocator::default())
+                } else {
+                    None
+                };
+                let alloc = SwitchableFastOpAllocator::new(alloc);
+                SwitchFastOp::new_from_nvars_and_nbonds_and_alloc(nvars, Some(nbonds), alloc)
+            },
         );
         qmc.set_run_rvb(rvb);
         qmc.set_enable_heatbath(heatbath);
@@ -270,12 +291,13 @@ impl LatticeTempering {
     /// Save graphs to a filepath. Does not save state of RNG.
     fn save_to_file(&self, path: &str) -> PyResult<()> {
         let f = File::create(path)?;
-        let tempering: DefaultSerializeTemperingContainer = self.tempering.clone().into();
+        let tempering: SerializeTemperingContainer<SwitchFastOp> = self.tempering.clone().into();
         let to_write = (
             self.nvars,
             self.edges.clone(),
             self.cutoff,
             self.seed,
+            self.use_allocator,
             tempering,
         );
         to_write
@@ -288,12 +310,13 @@ impl LatticeTempering {
     #[staticmethod]
     fn read_from_file(path: &str, reseed: Option<u64>) -> PyResult<Self> {
         let f = File::open(path)?;
-        let (nvars, edges, cutoff, seed, tempering): (
+        let (nvars, edges, cutoff, seed, use_allocator, tempering): (
             usize,
             Vec<(Edge, f64)>,
             usize,
             Option<u64>,
-            DefaultSerializeTemperingContainer,
+            bool,
+            SerializeTemperingContainer<SwitchFastOp>,
         ) = serde_cbor::from_reader(f)
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))?;
         // Do _NOT_ seed rng from saved value since that would repeat previous numbers,
@@ -309,6 +332,7 @@ impl LatticeTempering {
             cutoff,
             tempering: tempering.into_tempering_container_gen_rngs(container_rng),
             seed,
+            use_allocator,
         })
     }
 }

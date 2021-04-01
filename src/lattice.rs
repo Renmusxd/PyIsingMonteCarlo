@@ -3,12 +3,17 @@ use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use qmc::classical::graph::*;
+use qmc::sse::fast_op_alloc::{DefaultFastOpAllocator, SwitchableFastOpAllocator};
+use qmc::sse::fast_ops::{FastOp, FastOpsTemplate};
 use qmc::sse::qmc_ising::*;
 use qmc::sse::QmcDebug;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::cmp::{max, min};
+
+type SwitchFastOp = FastOpsTemplate<FastOp, SwitchableFastOpAllocator<DefaultFastOpAllocator>>;
+type SwitchQmc = QmcIsingGraph<SmallRng, SwitchFastOp>;
 
 pub enum BiasType {
     INDIVIDUAL(Vec<f64>),
@@ -28,6 +33,7 @@ pub struct Lattice {
     enable_rvb_updates: bool,
     enable_heatbath: bool,
     seed_gen: Option<u64>,
+    use_allocator: bool,
 }
 
 #[pymethods]
@@ -35,12 +41,17 @@ impl Lattice {
     /// Make a new lattice with `edges`, positive implies antiferromagnetic bonds, negative is
     /// ferromagnetic.
     #[new]
-    fn new_lattice(edges: Vec<((usize, usize), f64)>, seed_gen: Option<u64>) -> PyResult<Self> {
+    fn new_lattice(
+        edges: Vec<((usize, usize), f64)>,
+        seed_gen: Option<u64>,
+        use_allocator: Option<bool>,
+    ) -> PyResult<Self> {
         let nvars = edges
             .iter()
             .map(|((a, b), _)| max(*a, *b))
             .max()
             .map(|x| x + 1);
+        let use_allocator = use_allocator.unwrap_or(true);
         if let Some(nvars) = nvars {
             Ok(Lattice {
                 nvars,
@@ -51,6 +62,7 @@ impl Lattice {
                 enable_rvb_updates: false,
                 enable_heatbath: false,
                 seed_gen,
+                use_allocator,
             })
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
@@ -488,13 +500,14 @@ impl Lattice {
                         .zip(seeds.into_par_iter())
                         .try_for_each(|((mut s, mut e), seed)| -> Result<(), String> {
                             let rng = SmallRng::seed_from_u64(seed);
-                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                self.edges.clone(),
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_ref().map(|s| s.as_slice()),
                                 transverse,
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone(),
+                                self.use_allocator
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -564,13 +577,14 @@ impl Lattice {
                         .zip(seeds.into_par_iter())
                         .try_for_each(|((mut s, mut e), seed)| -> Result<(), String> {
                             let rng = SmallRng::seed_from_u64(seed);
-                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                self.edges.clone(),
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_ref().map(|s| s.as_slice()),
                                 transverse,
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone(),
+                                self.use_allocator
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -637,13 +651,14 @@ impl Lattice {
                         .zip(seeds.into_par_iter())
                         .try_for_each(|(mut corrs, seed)| -> Result<(), String> {
                             let rng = SmallRng::seed_from_u64(seed);
-                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                self.edges.clone(),
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_ref().map(|s| s.as_slice()),
                                 transverse,
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone(),
+                                self.use_allocator
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -715,13 +730,14 @@ impl Lattice {
                         .zip(seeds.into_par_iter())
                         .try_for_each(|(mut corrs, seed)| -> Result<(), String> {
                             let rng = SmallRng::seed_from_u64(seed);
-                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                self.edges.clone(),
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_ref().map(|s| s.as_slice()),
                                 transverse,
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone(),
+                                self.use_allocator
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -787,13 +803,14 @@ impl Lattice {
                         .zip(seeds.into_par_iter())
                         .try_for_each(|(mut corrs, seed)| -> Result<(), String> {
                             let rng = SmallRng::seed_from_u64(seed);
-                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                self.edges.clone(),
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_ref().map(|s| s.as_slice()),
                                 transverse,
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone(),
+                                self.use_allocator
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -864,13 +881,14 @@ impl Lattice {
                         .zip(seeds.into_par_iter())
                         .try_for_each(|((mut m, mut e), seed)| -> Result<(), String> {
                             let rng = SmallRng::seed_from_u64(seed);
-                            let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                self.edges.clone(),
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_ref().map(|s| s.as_slice()),
                                 transverse,
                                 bias,
                                 cutoff,
                                 rng,
-                                self.initial_state.clone(),
+                                self.use_allocator
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -966,13 +984,14 @@ impl Lattice {
                             .zip(seeds.into_par_iter())
                             .map(|(_, seed)| {
                                 let rng = SmallRng::seed_from_u64(seed);
-                                let mut qmc_graph = DefaultQmcIsingGraph::<SmallRng>::new_with_rng(
-                                    self.edges.clone(),
+                                let mut qmc_graph = make_qmc(
+                                    &self.edges,
+                                    self.initial_state.as_ref().map(|s| s.as_slice()),
                                     transverse,
                                     bias,
                                     cutoff,
                                     rng,
-                                    self.initial_state.clone(),
+                                    self.use_allocator
                                 );
                                 // TODO catch this error.
                                 qmc_graph.set_run_rvb(self.enable_rvb_updates);
@@ -1011,4 +1030,32 @@ impl Lattice {
             }
         }
     }
+}
+
+fn make_qmc(
+    edges: &[((usize, usize), f64)],
+    initial_state: Option<&[bool]>,
+    transverse: f64,
+    bias: f64,
+    cutoff: usize,
+    rng: SmallRng,
+    use_allocator: bool
+) -> SwitchQmc {
+    SwitchQmc::new_with_rng_with_manager_hook(
+        edges.to_vec(),
+        transverse,
+        bias,
+        cutoff,
+        rng,
+        initial_state.map(|s| s.to_vec()),
+        |nvars, nbonds| {
+            let alloc = if use_allocator {
+                Some(DefaultFastOpAllocator::default())
+            } else {
+                None
+            };
+            let alloc = SwitchableFastOpAllocator::new(alloc);
+            SwitchFastOp::new_from_nvars_and_nbonds_and_alloc(nvars, Some(nbonds), alloc)
+        },
+    )
 }

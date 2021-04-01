@@ -3,11 +3,17 @@ use ndarray::{Array, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3};
 use pyo3::prelude::*;
 use pyo3::PyErr;
+use qmc::classical::graph::make_random_spin_state;
+use qmc::sse::fast_op_alloc::{DefaultFastOpAllocator, SwitchableFastOpAllocator};
+use qmc::sse::fast_ops::{FastOp, FastOpsTemplate};
 use qmc::sse::*;
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::cmp::min;
+
+type SwitchFastOp = FastOpsTemplate<FastOp, SwitchableFastOpAllocator<DefaultFastOpAllocator>>;
+type SwitchQmc = Qmc<SmallRng, SwitchFastOp>;
 
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
@@ -16,41 +22,87 @@ pub struct QmcRunner {
     do_loop_updates: bool,
     do_heatbath: bool,
     interactions: Vec<(Vec<f64>, Vec<usize>)>,
-    qmc: Vec<DefaultQmc<SmallRng>>,
+    qmc: Vec<SwitchQmc>,
     rng: SmallRng,
+    use_allocator: bool,
 }
 
 #[pymethods]
 impl QmcRunner {
     /// Construct a new instance with `num_experiments` qmc instances.
     #[new]
-    fn new(nvars: usize, num_experiments: usize, seed: Option<u64>) -> Self {
+    fn new(
+        nvars: usize,
+        num_experiments: usize,
+        seed: Option<u64>,
+        use_allocator: Option<bool>,
+        do_loop_updates: Option<bool>,
+        do_heapbath_updates: Option<bool>,
+    ) -> Self {
         let mut rng = if let Some(seed) = seed {
             SmallRng::seed_from_u64(seed)
         } else {
             SmallRng::from_entropy()
         };
+        let do_loop_updates = do_loop_updates.unwrap_or(false);
+        let do_heatbath = do_heapbath_updates.unwrap_or(false);
+        let use_allocator = use_allocator.unwrap_or(true);
         let seeds = (0..num_experiments).map(|_| rng.gen());
         Self {
             nvars,
-            do_loop_updates: false,
-            do_heatbath: false,
+            do_loop_updates,
+            do_heatbath,
             interactions: Vec::default(),
             qmc: seeds
-                .map(|seed| DefaultQmc::new(nvars, SmallRng::seed_from_u64(seed), false))
+                .map(|seed| {
+                    let mut rng = SmallRng::seed_from_u64(seed);
+                    let state = make_random_spin_state(nvars, &mut rng);
+                    let mut qmc = SwitchQmc::new_with_state_with_manager_hook(
+                        nvars,
+                        rng,
+                        state,
+                        do_loop_updates,
+                        |nvars| {
+                            let alloc = if use_allocator {
+                                Some(DefaultFastOpAllocator::default())
+                            } else {
+                                None
+                            };
+                            let alloc = SwitchableFastOpAllocator::new(alloc);
+                            SwitchFastOp::new_from_nvars_and_nbonds_and_alloc(nvars, None, alloc)
+                        },
+                    );
+                    qmc.set_do_heatbath(do_heatbath);
+                    qmc
+                })
                 .collect(),
             rng,
+            use_allocator,
         }
     }
 
     /// Add a new experiment.
-    fn add_qmc(&mut self) {
+    fn add_qmc(&mut self, use_allocator: Option<bool>) {
+        let use_allocator = use_allocator.unwrap_or(self.use_allocator);
         let seed = self.rng.gen();
-        let mut qmc = DefaultQmc::new(
+        let mut rng = SmallRng::seed_from_u64(seed);
+        let state = make_random_spin_state(self.nvars, &mut rng);
+        let mut qmc = SwitchQmc::new_with_state_with_manager_hook(
             self.nvars,
-            SmallRng::seed_from_u64(seed),
+            rng,
+            state,
             self.do_loop_updates,
+            |nvars| {
+                let alloc = if use_allocator {
+                    Some(DefaultFastOpAllocator::default())
+                } else {
+                    None
+                };
+                let alloc = SwitchableFastOpAllocator::new(alloc);
+                SwitchFastOp::new_from_nvars_and_nbonds_and_alloc(nvars, None, alloc)
+            },
         );
+
         self.interactions
             .iter()
             .for_each(|(mat, vars)| qmc.make_interaction(mat.clone(), vars.clone()).unwrap());
