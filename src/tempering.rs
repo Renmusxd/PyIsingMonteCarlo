@@ -6,6 +6,8 @@ use qmc::sse::parallel_tempering::*;
 use qmc::sse::*;
 use rand::prelude::*;
 use rayon::prelude::*;
+use serde::ser::Serialize;
+use serde_cbor::ser::IoWrite;
 use std::cmp::{max, min};
 use std::fs::File;
 
@@ -276,7 +278,8 @@ impl LatticeTempering {
             self.seed,
             tempering,
         );
-        serde_cbor::to_writer(f, &to_write)
+        to_write
+            .serialize(&mut serde_cbor::Serializer::new(&mut IoWrite::new(f)).packed_format())
             .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))
     }
 

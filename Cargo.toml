@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "2.16.3"
+version = "2.16.4"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -17,6 +17,7 @@ panic = "abort"
 itertools = "^0.10"
 rand = {version = "^0.8", features = ["small_rng"]}
 rayon = "^1.5"
+serde = "^1.0"
 serde_cbor = "^0.11"
 
 [dependencies.numpy]
