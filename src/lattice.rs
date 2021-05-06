@@ -502,7 +502,7 @@ impl Lattice {
                             let rng = SmallRng::seed_from_u64(seed);
                             let mut qmc_graph = make_qmc(
                                 &self.edges,
-                                self.initial_state.as_ref().map(|s| s.as_slice()),
+                                self.initial_state.as_deref(),
                                 transverse,
                                 bias,
                                 cutoff,
@@ -579,7 +579,7 @@ impl Lattice {
                             let rng = SmallRng::seed_from_u64(seed);
                             let mut qmc_graph = make_qmc(
                                 &self.edges,
-                                self.initial_state.as_ref().map(|s| s.as_slice()),
+                                self.initial_state.as_deref(),
                                 transverse,
                                 bias,
                                 cutoff,
@@ -653,7 +653,7 @@ impl Lattice {
                             let rng = SmallRng::seed_from_u64(seed);
                             let mut qmc_graph = make_qmc(
                                 &self.edges,
-                                self.initial_state.as_ref().map(|s| s.as_slice()),
+                                self.initial_state.as_deref(),
                                 transverse,
                                 bias,
                                 cutoff,
@@ -732,7 +732,7 @@ impl Lattice {
                             let rng = SmallRng::seed_from_u64(seed);
                             let mut qmc_graph = make_qmc(
                                 &self.edges,
-                                self.initial_state.as_ref().map(|s| s.as_slice()),
+                                self.initial_state.as_deref(),
                                 transverse,
                                 bias,
                                 cutoff,
@@ -805,7 +805,7 @@ impl Lattice {
                             let rng = SmallRng::seed_from_u64(seed);
                             let mut qmc_graph = make_qmc(
                                 &self.edges,
-                                self.initial_state.as_ref().map(|s| s.as_slice()),
+                                self.initial_state.as_deref(),
                                 transverse,
                                 bias,
                                 cutoff,
@@ -883,7 +883,7 @@ impl Lattice {
                             let rng = SmallRng::seed_from_u64(seed);
                             let mut qmc_graph = make_qmc(
                                 &self.edges,
-                                self.initial_state.as_ref().map(|s| s.as_slice()),
+                                self.initial_state.as_deref(),
                                 transverse,
                                 bias,
                                 cutoff,
@@ -986,7 +986,7 @@ impl Lattice {
                                 let rng = SmallRng::seed_from_u64(seed);
                                 let mut qmc_graph = make_qmc(
                                     &self.edges,
-                                    self.initial_state.as_ref().map(|s| s.as_slice()),
+                                    self.initial_state.as_deref(),
                                     transverse,
                                     bias,
                                     cutoff,
