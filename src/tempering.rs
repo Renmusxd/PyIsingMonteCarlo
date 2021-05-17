@@ -19,6 +19,7 @@ type TempCont = TemperingContainer<SmallRng, SwitchQmc>;
 
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
+#[derive(Clone)]
 pub struct LatticeTempering {
     nvars: usize,
     edges: Vec<(Edge, f64)>,
@@ -286,6 +287,11 @@ impl LatticeTempering {
     /// Get the total number of tempering swaps which have occurred.
     fn get_total_swaps(&self) -> u64 {
         self.tempering.get_total_swaps()
+    }
+
+    /// Clone the given tempering object and all its graphs.
+    fn clone(&self) -> Self {
+        <Self as Clone>::clone(self)
     }
 
     /// Save graphs to a filepath. Does not save state of RNG.

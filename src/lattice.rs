@@ -993,7 +993,6 @@ impl Lattice {
                                     rng,
                                     self.use_allocator
                                 );
-                                // TODO catch this error.
                                 qmc_graph.set_run_rvb(self.enable_rvb_updates);
                                 qmc_graph.set_enable_heatbath(self.enable_heatbath);
 
