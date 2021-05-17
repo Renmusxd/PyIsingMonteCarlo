@@ -17,6 +17,7 @@ type SwitchQmc = Qmc<SmallRng, SwitchFastOp>;
 
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
+#[derive(Clone)]
 pub struct QmcRunner {
     nvars: usize,
     do_loop_updates: bool,
@@ -418,5 +419,10 @@ impl QmcRunner {
                 format!("Attempted to get graph {} of {}", g, self.qmc.len()),
             ))
         }
+    }
+
+    /// Clone the given graphs.
+    fn clone(&self) -> Self {
+        <Self as Clone>::clone(self)
     }
 }

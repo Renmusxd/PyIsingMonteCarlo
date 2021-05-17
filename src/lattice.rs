@@ -15,6 +15,7 @@ use std::cmp::{max, min};
 type SwitchFastOp = FastOpsTemplate<FastOp, SwitchableFastOpAllocator<DefaultFastOpAllocator>>;
 type SwitchQmc = QmcIsingGraph<SmallRng, SwitchFastOp>;
 
+#[derive(Clone)]
 pub enum BiasType {
     INDIVIDUAL(Vec<f64>),
     GLOBAL(f64),
@@ -24,6 +25,7 @@ pub enum BiasType {
 /// Creates new initial conditions each time simulations are run, does not preserve any internal
 /// state for the lattice variables (spins).
 #[pyclass]
+#[derive(Clone)]
 pub struct Lattice {
     nvars: usize,
     edges: Vec<((usize, usize), f64)>,
@@ -1028,6 +1030,11 @@ impl Lattice {
                 }
             }
         }
+    }
+
+    /// Clone the given graph and data.
+    fn clone(&self) -> Self {
+        <Self as Clone>::clone(self)
     }
 }
 
