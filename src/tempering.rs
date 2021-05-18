@@ -17,6 +17,15 @@ type SwitchFastOp = FastOpsTemplate<FastOp, SwitchableFastOpAllocator<DefaultFas
 type SwitchQmc = QmcIsingGraph<SmallRng, SwitchFastOp>;
 type TempCont = TemperingContainer<SmallRng, SwitchQmc>;
 
+type FileType = (
+    usize,
+    Vec<(Edge, f64)>,
+    usize,
+    Option<u64>,
+    bool,
+    SerializeTemperingContainer<SwitchFastOp>,
+);
+
 /// Unlike the Lattice class this maintains a set of graphs with internal state.
 #[pyclass]
 #[derive(Clone)]
@@ -298,7 +307,7 @@ impl LatticeTempering {
     fn save_to_file(&self, path: &str) -> PyResult<()> {
         let f = File::create(path)?;
         let tempering: SerializeTemperingContainer<SwitchFastOp> = self.tempering.clone().into();
-        let to_write = (
+        let to_write: FileType = (
             self.nvars,
             self.edges.clone(),
             self.cutoff,
@@ -316,15 +325,10 @@ impl LatticeTempering {
     #[staticmethod]
     fn read_from_file(path: &str, reseed: Option<u64>) -> PyResult<Self> {
         let f = File::open(path)?;
-        let (nvars, edges, cutoff, seed, use_allocator, tempering): (
-            usize,
-            Vec<(Edge, f64)>,
-            usize,
-            Option<u64>,
-            bool,
-            SerializeTemperingContainer<SwitchFastOp>,
-        ) = serde_cbor::from_reader(f)
-            .map_err(|err| PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string()))?;
+        let (nvars, edges, cutoff, seed, use_allocator, tempering): FileType =
+            serde_cbor::from_reader(f).map_err(|err| {
+                PyErr::new::<pyo3::exceptions::PyIOError, String>(err.to_string())
+            })?;
         // Do _NOT_ seed rng from saved value since that would repeat previous numbers,
         // not resume where it left off.
         let container_rng = if let Some(seed) = reseed {

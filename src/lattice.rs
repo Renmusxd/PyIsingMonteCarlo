@@ -509,7 +509,7 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.use_allocator
+                                self.use_allocator,
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -586,7 +586,7 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.use_allocator
+                                self.use_allocator,
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -660,7 +660,7 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.use_allocator
+                                self.use_allocator,
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -739,7 +739,7 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.use_allocator
+                                self.use_allocator,
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -812,7 +812,7 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.use_allocator
+                                self.use_allocator,
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -890,7 +890,7 @@ impl Lattice {
                                 bias,
                                 cutoff,
                                 rng,
-                                self.use_allocator
+                                self.use_allocator,
                             );
                             qmc_graph.set_run_rvb(self.enable_rvb_updates);
                             qmc_graph.set_enable_heatbath(self.enable_heatbath);
@@ -972,63 +972,61 @@ impl Lattice {
             BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
-                match self.transverse {
-                    None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
-                        "Cannot run quantum monte carlo without transverse field.".to_string(),
-                    )),
-                    Some(transverse) => {
-                        let cutoff = self.nvars;
-                        let sampling_freq = sampling_freq.unwrap_or(1);
-                        let seeds = self.make_seeds(num_experiments);
-                        let (tot_diag, tot_offd, tot_consts, tot_n) = (0..num_experiments)
-                            .into_par_iter()
-                            .zip(seeds.into_par_iter())
-                            .map(|(_, seed)| {
-                                let rng = SmallRng::seed_from_u64(seed);
-                                let mut qmc_graph = make_qmc(
-                                    &self.edges,
-                                    self.initial_state.as_deref(),
-                                    transverse,
-                                    bias,
-                                    cutoff,
-                                    rng,
-                                    self.use_allocator
-                                );
-                                qmc_graph.set_run_rvb(self.enable_rvb_updates);
-                                qmc_graph.set_enable_heatbath(self.enable_heatbath);
-
-                                if let Some(wait) = sampling_wait_buffer {
-                                    qmc_graph.timesteps(wait, beta);
-                                };
-                                let mut t = 0;
-                                let mut tot_diag = 0;
-                                let mut tot_offd = 0;
-                                let mut tot_consts = 0;
-                                let mut n_samples = 0;
-                                while t < timesteps {
-                                    qmc_graph.timesteps(sampling_freq, beta);
-                                    let (diag, offd) = qmc_graph.count_diagonal_and_off();
-                                    tot_consts += qmc_graph.count_constant_ops();
-                                    tot_diag += diag;
-                                    tot_offd += offd;
-                                    n_samples += 1;
-                                    t += sampling_freq;
-                                }
-                                (tot_diag, tot_offd, tot_consts, n_samples)
-                            })
-                            .reduce(
-                                || (0, 0, 0, 0),
-                                |(a, b, c, d), (e, f, g, h)| (a + e, b + f, c + g, d + h),
+            BiasType::GLOBAL(bias) => match self.transverse {
+                None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+                    "Cannot run quantum monte carlo without transverse field.".to_string(),
+                )),
+                Some(transverse) => {
+                    let cutoff = self.nvars;
+                    let sampling_freq = sampling_freq.unwrap_or(1);
+                    let seeds = self.make_seeds(num_experiments);
+                    let (tot_diag, tot_offd, tot_consts, tot_n) = (0..num_experiments)
+                        .into_par_iter()
+                        .zip(seeds.into_par_iter())
+                        .map(|(_, seed)| {
+                            let rng = SmallRng::seed_from_u64(seed);
+                            let mut qmc_graph = make_qmc(
+                                &self.edges,
+                                self.initial_state.as_deref(),
+                                transverse,
+                                bias,
+                                cutoff,
+                                rng,
+                                self.use_allocator,
                             );
-                        Ok((
-                            tot_diag as f64 / tot_n as f64,
-                            tot_offd as f64 / tot_n as f64,
-                            tot_consts as f64 / tot_n as f64,
-                        ))
-                    }
+                            qmc_graph.set_run_rvb(self.enable_rvb_updates);
+                            qmc_graph.set_enable_heatbath(self.enable_heatbath);
+
+                            if let Some(wait) = sampling_wait_buffer {
+                                qmc_graph.timesteps(wait, beta);
+                            };
+                            let mut t = 0;
+                            let mut tot_diag = 0;
+                            let mut tot_offd = 0;
+                            let mut tot_consts = 0;
+                            let mut n_samples = 0;
+                            while t < timesteps {
+                                qmc_graph.timesteps(sampling_freq, beta);
+                                let (diag, offd) = qmc_graph.count_diagonal_and_off();
+                                tot_consts += qmc_graph.count_constant_ops();
+                                tot_diag += diag;
+                                tot_offd += offd;
+                                n_samples += 1;
+                                t += sampling_freq;
+                            }
+                            (tot_diag, tot_offd, tot_consts, n_samples)
+                        })
+                        .reduce(
+                            || (0, 0, 0, 0),
+                            |(a, b, c, d), (e, f, g, h)| (a + e, b + f, c + g, d + h),
+                        );
+                    Ok((
+                        tot_diag as f64 / tot_n as f64,
+                        tot_offd as f64 / tot_n as f64,
+                        tot_consts as f64 / tot_n as f64,
+                    ))
                 }
-            }
+            },
         }
     }
 
@@ -1045,7 +1043,7 @@ fn make_qmc(
     bias: f64,
     cutoff: usize,
     rng: SmallRng,
-    use_allocator: bool
+    use_allocator: bool,
 ) -> SwitchQmc {
     SwitchQmc::new_with_rng_with_manager_hook(
         edges.to_vec(),

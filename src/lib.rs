@@ -1,9 +1,11 @@
 mod lattice;
+mod qmcising;
 mod qmcrunner;
 mod tempering;
 
 use crate::lattice::Lattice;
-use crate::qmcrunner::*;
+use crate::qmcising::QmcIsing;
+use crate::qmcrunner::QmcRunner;
 use crate::tempering::LatticeTempering;
 use pyo3::prelude::*;
 
@@ -12,5 +14,6 @@ fn py_monte_carlo(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Lattice>()?;
     m.add_class::<LatticeTempering>()?;
     m.add_class::<QmcRunner>()?;
+    m.add_class::<QmcIsing>()?;
     Ok(())
 }
