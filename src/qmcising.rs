@@ -137,7 +137,7 @@ impl QmcIsing {
 
     /// Run `timesteps` at `beta` in parallel for each graph.
     fn run_qmc(&mut self, beta: f64, timesteps: usize) {
-        self.qmc.iter_mut().for_each(|qmc| {
+        self.qmc.par_iter_mut().for_each(|qmc| {
             qmc.timesteps(timesteps, beta);
         });
     }
@@ -151,19 +151,46 @@ impl QmcIsing {
     }
 
     /// Run in parallel for each graph.
-    fn run_cluster(&mut self, timesteps: Option<usize>) {
-        let timesteps = timesteps.unwrap_or(1);
-        self.qmc.par_iter_mut().for_each(|qmc| {
-            (0..timesteps).for_each(|_| qmc.single_cluster_step());
-        });
+    fn run_cluster(&mut self, py: Python) -> Py<PyArray1<usize>> {
+        let mut cluster_sizes = Array::default((self.qmc.len(),));
+        self.qmc
+            .par_iter_mut()
+            .zip(
+                cluster_sizes
+                    .axis_iter_mut(ndarray::Axis(0))
+                    .into_par_iter(),
+            )
+            .for_each(|(qmc, mut s)| {
+                s.fill(qmc.single_cluster_step())
+            });
+        cluster_sizes.into_pyarray(py).to_owned()
     }
 
     /// Run in parallel for each graph.
-    fn run_rvb(&mut self, timesteps: Option<usize>) {
+    fn run_rvb(
+        &mut self,
+        py: Python,
+        timesteps: Option<usize>,
+        updates_per_sweep: Option<usize>,
+    ) -> Py<PyArray2<f64>> {
         let timesteps = timesteps.unwrap_or(1);
-        self.qmc.par_iter_mut().for_each(|qmc| {
-            (0..timesteps).for_each(|_| qmc.single_rvb_step());
-        });
+        let mut rvb_successes = Array::default((self.qmc.len(), timesteps));
+        self.qmc
+            .par_iter_mut()
+            .zip(
+                rvb_successes
+                    .axis_iter_mut(ndarray::Axis(0))
+                    .into_par_iter(),
+            )
+            .for_each(|(qmc, mut succs)| {
+                succs
+                    .iter_mut()
+                    .for_each(|s| {
+                        let (succ, att) = qmc.single_rvb_sweep(updates_per_sweep);
+                        *s = succ as f64 / (att as f64);
+                    })
+            });
+        rvb_successes.into_pyarray(py).to_owned()
     }
 
     /// Run a quantum monte carlo simulation, sample the state at each `sampling_freq`, returns that

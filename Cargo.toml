@@ -25,7 +25,8 @@ version = "^0.13"
 features = ["rayon"]
 
 [dependencies.qmc]
-version = "^2.18.0"
+#version = "^2.18.0"
+path = "../IsingMonteCarlo"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
