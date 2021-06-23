@@ -17,8 +17,8 @@ type SwitchQmc = QmcIsingGraph<SmallRng, SwitchFastOp>;
 
 #[derive(Clone)]
 pub enum BiasType {
-    INDIVIDUAL(Vec<f64>),
-    GLOBAL(f64),
+    Individual(Vec<f64>),
+    Global(f64),
 }
 
 /// A lattice for running ising monte carlo simulations. Takes a list of edges: ((a, b), j), ...
@@ -58,7 +58,7 @@ impl Lattice {
             Ok(Lattice {
                 nvars,
                 edges,
-                biases: BiasType::GLOBAL(0.),
+                biases: BiasType::Global(0.),
                 transverse: None,
                 initial_state: None,
                 enable_rvb_updates: false,
@@ -104,12 +104,12 @@ impl Lattice {
     fn set_individual_bias(&mut self, var: usize, bias: f64) -> PyResult<()> {
         if var < self.nvars {
             match &mut self.biases {
-                BiasType::GLOBAL(b) => {
+                BiasType::Global(b) => {
                     let mut biases = vec![*b; self.nvars];
                     biases[var] = bias;
-                    self.biases = BiasType::INDIVIDUAL(biases)
+                    self.biases = BiasType::Individual(biases)
                 }
-                BiasType::INDIVIDUAL(biases) => {
+                BiasType::Individual(biases) => {
                     biases[var] = bias;
                 }
             }
@@ -127,7 +127,7 @@ impl Lattice {
 
     /// Set the bias of the variable `var` to `bias`.
     fn set_global_bias(&mut self, bias: f64) {
-        self.biases = BiasType::GLOBAL(bias)
+        self.biases = BiasType::Global(bias)
     }
 
     /// Set the transverse field on the system to `transverse`
@@ -178,15 +178,14 @@ impl Lattice {
         edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
-            let only_basic_moves = only_basic_moves.unwrap_or(false);
             let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
 
             let mut energies = Array::default((num_experiments,));
             let mut states = Array2::<bool>::default((num_experiments, self.nvars));
 
             let biases = match &self.biases {
-                BiasType::GLOBAL(b) => vec![*b; self.nvars],
-                BiasType::INDIVIDUAL(bs) => bs.clone(),
+                BiasType::Global(b) => vec![*b; self.nvars],
+                BiasType::Individual(bs) => bs.clone(),
             };
 
             let seeds = self.make_seeds(num_experiments);
@@ -202,7 +201,10 @@ impl Lattice {
                     if let Some(s) = &self.initial_state {
                         gs.set_state(s.clone())
                     };
-                    (0..timesteps).for_each(|_| gs.do_time_step(beta, only_basic_moves).unwrap());
+                    (0..timesteps).for_each(|_| {
+                        gs.do_time_step(beta, None, None, None, only_basic_moves)
+                            .unwrap()
+                    });
                     e.fill(gs.get_energy());
                     s.iter_mut()
                         .zip(gs.get_state().into_iter())
@@ -238,7 +240,6 @@ impl Lattice {
         edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray3<bool>>)> {
         if self.transverse.is_none() {
-            let only_basic_moves = only_basic_moves.unwrap_or(false);
             let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
             let thermalization_time = thermalization_time.unwrap_or(0);
 
@@ -249,8 +250,8 @@ impl Lattice {
             let mut states = Array3::<bool>::default((num_experiments, n_samples, self.nvars));
 
             let biases = match &self.biases {
-                BiasType::GLOBAL(b) => vec![*b; self.nvars],
-                BiasType::INDIVIDUAL(bs) => bs.clone(),
+                BiasType::Global(b) => vec![*b; self.nvars],
+                BiasType::Individual(bs) => bs.clone(),
             };
 
             let seeds = self.make_seeds(num_experiments);
@@ -268,13 +269,14 @@ impl Lattice {
                         gs.set_state(s.clone())
                     };
                     (0..thermalization_time)
-                        .try_for_each(|_| gs.do_time_step(beta, only_basic_moves))
+                        .try_for_each(|_| gs.do_time_step(beta, None, None, None, only_basic_moves))
                         .unwrap();
                     s.axis_iter_mut(ndarray::Axis(0)).zip(e.iter_mut()).fold(
                         gs,
                         |mut gs, (mut s, e)| {
                             for _ in 0..sampling_freq {
-                                gs.do_time_step(beta, only_basic_moves).unwrap();
+                                gs.do_time_step(beta, None, None, None, only_basic_moves)
+                                    .unwrap();
                             }
                             s.iter_mut()
                                 .zip(gs.state_ref().iter().cloned())
@@ -314,7 +316,6 @@ impl Lattice {
         edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
-            let only_basic_moves = only_basic_moves.unwrap_or(false);
             let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
             betas.sort_by_key(|(i, _)| *i);
             if betas.is_empty() {
@@ -336,8 +337,8 @@ impl Lattice {
             let mut states = Array2::<bool>::default((num_experiments, self.nvars));
 
             let biases = match &self.biases {
-                BiasType::GLOBAL(b) => vec![*b; self.nvars],
-                BiasType::INDIVIDUAL(bs) => bs.clone(),
+                BiasType::Global(b) => vec![*b; self.nvars],
+                BiasType::Individual(bs) => bs.clone(),
             };
 
             let seeds = self.make_seeds(num_experiments);
@@ -362,7 +363,7 @@ impl Lattice {
                             let (ia, va) = betas[beta_index];
                             let (ib, vb) = betas[beta_index + 1];
                             let beta = (vb - va) * ((i - ia) as f64 / (ib - ia) as f64) + va;
-                            gs.do_time_step(beta, only_basic_moves)
+                            gs.do_time_step(beta, None, None, None, only_basic_moves)
                         })
                         .unwrap();
 
@@ -401,7 +402,6 @@ impl Lattice {
         edge_move_importance_sampling: Option<bool>,
     ) -> PyResult<(Py<PyArray2<f64>>, Py<PyArray2<bool>>)> {
         if self.transverse.is_none() {
-            let only_basic_moves = only_basic_moves.unwrap_or(false);
             let edge_move_importance_sampling = edge_move_importance_sampling.unwrap_or(false);
             betas.sort_by_key(|(i, _)| *i);
             if betas.is_empty() {
@@ -423,8 +423,8 @@ impl Lattice {
             let mut states = Array2::<bool>::default((num_experiments, self.nvars));
 
             let biases = match &self.biases {
-                BiasType::GLOBAL(b) => vec![*b; self.nvars],
-                BiasType::INDIVIDUAL(bs) => bs.clone(),
+                BiasType::Global(b) => vec![*b; self.nvars],
+                BiasType::Individual(bs) => bs.clone(),
             };
 
             let seeds = self.make_seeds(num_experiments);
@@ -449,7 +449,8 @@ impl Lattice {
                         let (ia, va) = betas[beta_index];
                         let (ib, vb) = betas[beta_index + 1];
                         let beta = (vb - va) * ((i - ia) as f64 / (ib - ia) as f64) + va;
-                        gs.do_time_step(beta, only_basic_moves).unwrap();
+                        gs.do_time_step(beta, None, None, None, only_basic_moves)
+                            .unwrap();
                         e.fill(gs.get_energy())
                     });
                     s.iter_mut()
@@ -482,10 +483,10 @@ impl Lattice {
         num_experiments: usize,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray2<bool>>)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
@@ -552,10 +553,10 @@ impl Lattice {
         sampling_freq: Option<usize>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray3<bool>>)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
@@ -634,10 +635,10 @@ impl Lattice {
         sampling_freq: Option<usize>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
@@ -713,10 +714,10 @@ impl Lattice {
             .map(|p| p.as_slice())
             .collect::<Vec<_>>();
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
@@ -787,10 +788,10 @@ impl Lattice {
         sampling_freq: Option<usize>,
     ) -> PyResult<Py<PyArray2<f64>>> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
@@ -862,10 +863,10 @@ impl Lattice {
         exponent: Option<i32>,
     ) -> PyResult<(Py<PyArray1<f64>>, Py<PyArray1<f64>>)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),
@@ -932,10 +933,10 @@ impl Lattice {
     /// Get internal energy offset.
     pub fn get_offset(&self) -> PyResult<f64> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => {
+            BiasType::Global(bias) => {
                 if let Some(transverse) = self.transverse {
                     let qmc_graph = new_qmc(
                         self.edges.clone(),
@@ -969,10 +970,10 @@ impl Lattice {
         sampling_wait_buffer: Option<usize>,
     ) -> PyResult<(f64, f64, f64)> {
         match self.biases {
-            BiasType::INDIVIDUAL(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
+            BiasType::Individual(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                 "Cannot run quantum monte carlo with individual spin biases".to_string(),
             )),
-            BiasType::GLOBAL(bias) => match self.transverse {
+            BiasType::Global(bias) => match self.transverse {
                 None => Err(PyErr::new::<pyo3::exceptions::PyValueError, String>(
                     "Cannot run quantum monte carlo without transverse field.".to_string(),
                 )),

@@ -160,9 +160,7 @@ impl QmcIsing {
                     .axis_iter_mut(ndarray::Axis(0))
                     .into_par_iter(),
             )
-            .for_each(|(qmc, mut s)| {
-                s.fill(qmc.single_cluster_step())
-            });
+            .for_each(|(qmc, mut s)| s.fill(qmc.single_cluster_step()));
         cluster_sizes.into_pyarray(py).to_owned()
     }
 
@@ -183,12 +181,10 @@ impl QmcIsing {
                     .into_par_iter(),
             )
             .for_each(|(qmc, mut succs)| {
-                succs
-                    .iter_mut()
-                    .for_each(|s| {
-                        let (succ, att) = qmc.single_rvb_sweep(updates_per_sweep);
-                        *s = succ as f64 / (att as f64);
-                    })
+                succs.iter_mut().for_each(|s| {
+                    let (succ, att) = qmc.single_rvb_sweep(updates_per_sweep);
+                    *s = succ as f64 / (att as f64);
+                })
             });
         rvb_successes.into_pyarray(py).to_owned()
     }

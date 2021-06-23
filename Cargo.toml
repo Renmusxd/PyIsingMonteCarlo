@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "2.18.0"
+version = "2.19.1"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -20,19 +20,18 @@ rayon = "^1.5"
 serde = "^1.0"
 serde_cbor = "^0.11"
 
-[dependencies.numpy]
-version = "^0.13"
-features = ["rayon"]
-
 [dependencies.qmc]
-#version = "^2.18.0"
-path = "../IsingMonteCarlo"
+version = "^2.19"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
 version = "^0.13"
 features = ["extension-module"]
 
+[dependencies.numpy]
+version = "^0.13"
+features = ["rayon"]
+
 [dependencies.ndarray]
-version = "^0.14"
+version = ">= 0.13, < 0.16"
 features = ["rayon"]
