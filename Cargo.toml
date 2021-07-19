@@ -1,6 +1,6 @@
 [package]
 name = "py_monte_carlo"
-version = "2.19.1"
+version = "2.19.2"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
 edition = "2018"
 
@@ -25,11 +25,11 @@ version = "^2.19"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
-version = "^0.13"
+version = "^0.14"
 features = ["extension-module"]
 
 [dependencies.numpy]
-version = "^0.13"
+version = "^0.14"
 features = ["rayon"]
 
 [dependencies.ndarray]
