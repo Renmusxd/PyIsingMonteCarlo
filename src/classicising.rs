@@ -85,7 +85,38 @@ impl ClassicIsing {
     /// * `timesteps`: number of timesteps to run.
     /// * `num_experiments`: number of simultaneous experiments to run.
     /// * `only_basic_moves`: disallow things other than simple spin flips.
-    /// * `edge_move_importance_sampling`: Weight the attempts at edge flips by their energy cost.
+    fn run_monte_carlo(
+        &mut self,
+        beta: f64,
+        timesteps: usize,
+        nspinupdates: Option<usize>,
+        nedgeupdates: Option<usize>,
+        nwormupdates: Option<usize>,
+        only_basic_moves: Option<bool>,
+    ) {
+        self.graphs.par_iter_mut()
+            .for_each(|gs| {
+                (0..timesteps)
+                    .try_for_each(|_| {
+                        gs.do_time_step(
+                            beta,
+                            nspinupdates,
+                            nedgeupdates,
+                            nwormupdates,
+                            only_basic_moves,
+                        )
+                    })
+                    .unwrap();
+            })
+    }
+
+    /// Run a classical monte carlo simulation and return samples and energies.
+    ///
+    /// # Arguments:
+    /// * `beta`: E/kt to use for the simulation.
+    /// * `timesteps`: number of timesteps to run.
+    /// * `num_experiments`: number of simultaneous experiments to run.
+    /// * `only_basic_moves`: disallow things other than simple spin flips.
     fn run_monte_carlo_sampling(
         &mut self,
         py: Python,
@@ -133,7 +164,7 @@ impl ClassicIsing {
                                 nwormupdates,
                                 only_basic_moves,
                             )
-                            .unwrap();
+                                .unwrap();
                         }
                         s.iter_mut()
                             .zip(gs.state_ref().iter().cloned())
