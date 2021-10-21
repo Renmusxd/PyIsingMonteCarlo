@@ -1,8 +1,8 @@
 [package]
 name = "py_monte_carlo"
-version = "2.19.3"
+version = "2.20.0"
 authors = ["Sumner Hearth <sumnernh@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "py_monte_carlo"
@@ -21,7 +21,7 @@ serde = "^1.0"
 serde_cbor = "^0.11"
 
 [dependencies.qmc]
-version = "^2.19"
+version = "^2.20"
 features = ["autocorrelations", "parallel-tempering", "serialize", "nightly"]
 
 [dependencies.pyo3]
