@@ -94,20 +94,19 @@ impl ClassicIsing {
         nwormupdates: Option<usize>,
         only_basic_moves: Option<bool>,
     ) {
-        self.graphs.par_iter_mut()
-            .for_each(|gs| {
-                (0..timesteps)
-                    .try_for_each(|_| {
-                        gs.do_time_step(
-                            beta,
-                            nspinupdates,
-                            nedgeupdates,
-                            nwormupdates,
-                            only_basic_moves,
-                        )
-                    })
-                    .unwrap();
-            })
+        self.graphs.par_iter_mut().for_each(|gs| {
+            (0..timesteps)
+                .try_for_each(|_| {
+                    gs.do_time_step(
+                        beta,
+                        nspinupdates,
+                        nedgeupdates,
+                        nwormupdates,
+                        only_basic_moves,
+                    )
+                })
+                .unwrap();
+        })
     }
 
     /// Run a classical monte carlo simulation and return samples and energies.
@@ -164,7 +163,7 @@ impl ClassicIsing {
                                 nwormupdates,
                                 only_basic_moves,
                             )
-                                .unwrap();
+                            .unwrap();
                         }
                         s.iter_mut()
                             .zip(gs.state_ref().iter().cloned())

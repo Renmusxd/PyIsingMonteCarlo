@@ -646,7 +646,8 @@ impl Lattice {
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
 
-                    let mut corrs = Array::default((num_experiments, timesteps));
+                    let mut corrs =
+                        Array::default((num_experiments, timesteps / sampling_freq.unwrap_or(1)));
                     let seeds = self.make_seeds(num_experiments);
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
@@ -725,7 +726,8 @@ impl Lattice {
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
 
-                    let mut corrs = Array::default((num_experiments, timesteps));
+                    let mut corrs =
+                        Array::default((num_experiments, timesteps / sampling_freq.unwrap_or(1)));
                     let seeds = self.make_seeds(num_experiments);
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
@@ -798,7 +800,8 @@ impl Lattice {
                 Some(transverse) => {
                     let sampling_wait_buffer = sampling_wait_buffer.unwrap_or(0);
                     let cutoff = self.nvars;
-                    let mut corrs = Array::default((num_experiments, timesteps));
+                    let mut corrs =
+                        Array::default((num_experiments, timesteps / sampling_freq.unwrap_or(1)));
                     let seeds = self.make_seeds(num_experiments);
                     corrs
                         .axis_iter_mut(ndarray::Axis(0))
